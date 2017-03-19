@@ -7,15 +7,20 @@
 
 #include <stdint.h>
 #include "platform.hpp"
+#include "camera.hpp"
 #include <vulkan/vulkan.h>
+
+
+struct GLFWwindow;
 
 
 namespace pbr {
 namespace global {
 
-VkInstance instance;
 
-}
+extern VkInstance GetInstance();
+typedef struct GLFWwindow *Window;
+} // global
 
 
 /// Base class handles simple base stuff...
@@ -25,12 +30,13 @@ public:
   virtual ~Base() { }
 
   void Initialize();
-  virtual void Render();
+  virtual void Run();
   virtual void Cleanup();
 
 
-  void Display();
-
+  void SetupWindow(uint32_t width, uint32_t height);
+  void CloseWindow();
+  
 protected:
 
   void CreateSurface();
@@ -44,6 +50,10 @@ protected:
   
   VkPhysicalDevice  m_phyDev;
   VkDevice          m_logDev;
+  global::Window    m_window;
+  Camera            m_camera;
+  double            m_lastTime;
+  double            m_dt;
 };
 } // pbr
 #endif // __BASE_HPP

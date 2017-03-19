@@ -8,6 +8,8 @@
  #if defined(_WIN32)
   #define WIN32_LEAN_AND_MEAN
   #include <Windows.h>
+  #include <fcntl.h>
+  #include <io.h>
  #elif defined(__linux__) || defined(__POSIX__)
   #error "Temporary linux ban... Windows is only supported for now..."
  #elif defined(__APPLE__) && defined(__MACH__)
