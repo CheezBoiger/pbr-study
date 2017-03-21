@@ -13,6 +13,7 @@ option(
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
 
 set(ENABLE_GLSLANG_BINARIES   OFF)
+set(GLFW_VULKAN_STAIC         ON)
 set(GLFW_BUILD_EXAMPLES       OFF)
 set(GLFW_BUILD_TESTS          OFF)
 set(BUILD_SHARED_LIBS         OFF)

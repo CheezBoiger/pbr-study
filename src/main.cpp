@@ -13,7 +13,7 @@ int main(int c, char *argv[]) {
   std::cin.ignore();
   pbr::Base base;
   base.SetupWindow(1440, 900);
+  base.Initialize();
   base.Run();
-  
   return 0;
 }
