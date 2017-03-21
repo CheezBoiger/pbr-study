@@ -9,6 +9,7 @@
 #include "platform.hpp"
 #include "camera.hpp"
 #include <vulkan/vulkan.h>
+#include <vector>
 
 
 struct GLFWwindow;
@@ -69,14 +70,30 @@ protected:
     bool IsComplete();
   };
 
+  /// Check for SwapChain supporting details. Swap Chains are the forfront of presenting
+  /// frames on the display. It acts as a queue for images that await for presentation on 
+  /// screen, yet SwapChains contain formats and modes of which to present images. Details
+  /// are provided inside this struct. 
+  struct SwapChainSupportDetails {
+    VkSurfaceCapabilitiesKHR capabilities;
+    std::vector<VkSurfaceFormatKHR> formats;
+    std::vector<VkPresentModeKHR> presentModes;
+  };
+
   /// Find our supported queue families, stored in the physical device.
   /// A default -1 is stored if no queue family exists with a graphics bit.
-  QueueFamilyIndices FindQueueFamilies();
+  QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device);
+  SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice device);
 
   void CreateSurface();
   void CreateLogicalDevice();
   void FindPhyiscalDevice();
   void SetDebugCallback();
+  void CreateSwapChain();
+  bool IsDeviceSuitable(VkPhysicalDevice device);
+  VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
+  VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
+  VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
   uint32_t FindMemoryType(uint32_t type);
 
   /// Device queue.
@@ -91,16 +108,22 @@ protected:
     VkSemaphore rendering;
   } m_semaphores;
   
-  VkPhysicalDevice  m_phyDev;
-  VkDevice          m_logDev;
-  VkSurfaceKHR      m_surface;
-  VkCommandPool     m_commandPool;
-  VkDebugReportCallbackEXT m_callback;
-  VkDeviceMemory    m_commandMem;
-  global::Window    m_window;
-  Camera            m_camera;
-  double            m_lastTime;
-  double            m_dt;
+  VkPhysicalDevice            m_physicalDev;
+  VkDevice                    m_logicalDev;
+  VkSurfaceKHR                m_surface; // TODO(): This needs to be global.
+  VkSwapchainKHR              m_swapchain;  
+  std::vector<VkImage>        m_swapchainImages;
+  VkFormat                    m_swapchainFormat;
+  VkExtent2D                  m_swapchainExtent;
+  VkCommandPool               m_commandPool;
+  VkDebugReportCallbackEXT    m_callback;
+  VkDeviceMemory              m_commandMem;
+  global::Window              m_window;
+  uint32_t window_width;
+  uint32_t window_height;
+  Camera                      m_camera;
+  double                      m_lastTime;
+  double                      m_dt;
 };
 } // pbr
 #endif // __BASE_HPP

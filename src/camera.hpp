@@ -14,9 +14,12 @@ namespace pbr {
 
 class Camera {
 public:
+  enum Movement;
 
   void Update(double dt);
   double GetSpeed() { return speed; }
+  void Move(Movement movement);
+  void SetLookAt(Vec3 target) { lookat = target; }
 
   Mat4 GetProjection() { return projection; }
   Mat4 GetView() { return view; }
@@ -42,6 +45,18 @@ private:
 
   /// current pitch in degrees.
   double pitch;
+
+  Vec3 lookat;
+
+public:
+  enum Movement {
+    UP,
+    DOWN,
+    LEFT,
+    RIGHT,
+    FORWARD,
+    BACK
+  };
 };
 } // pbr
 #endif // __CAMERA_HPP

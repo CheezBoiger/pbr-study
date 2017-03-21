@@ -88,6 +88,7 @@ public:
 };
 
 
+/// Vector3 implementation.
 template<typename _Value = float>
 class Vector3 {
 public:
@@ -96,6 +97,30 @@ public:
           _Value z = 1.0f)
     : x(x), y(y), z(z) { }
 
+
+  Vector3 operator+(Vector3 &vec) {
+    return Vector3(
+      x + vec.x,
+      y + vec.y,
+      z + vec.z
+    );
+  }
+
+  Vector3 operator-(Vector3 &vec) {
+    return Vector3(
+      x - vec.x,
+      y - vec.y,
+      z - vec.z
+    );
+  }
+
+  Vector3 operator*(Vector3 &vec) {
+    return Vector3(
+      x * vec.x,
+      y * vec.y,
+      z * vec.z
+    );
+  }
 
   union {
     struct { _Value x, y, z; };
@@ -120,22 +145,27 @@ public:
   };
 };
 
+/// Cross product of 2 3D vectors.
 template<typename _Type = float>
 Vector3<_Type> Cross(Vector3<_Type> const &a, Vector3<_Type> const &b);
 
+/// Dot product of 2 3D vectors.
 template<typename _Type = float>
 Vector3<_Type> Dot(Vector3<_Type> const &a, Vector3<_Type> const &b);
 
+/// Get the length of two points in 3D space. 
 template<typename _Type = float>
 _Type Length(Vector3<_Type> const &a, Vector3<_Type> const &b) {
 }
 
-
+/// Get the magnitude of the vector.
 template<typename _Type = float>
 _Type Magnitude(Vector3<_Type> const &a) {
   return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
 }
 
+/// Normalize the vector to it's base unit.
+/// This is probably not the best solution, but it is will suffice in this case.
 template<typename _Type = float>
 Vector3<_Type> Normalize(Vector3<_Type> &vec) {
   _Type mag = Magnitude(vec);
