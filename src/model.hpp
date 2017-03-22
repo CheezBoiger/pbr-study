@@ -5,6 +5,9 @@
 #define __MODEL_HPP
 
 
+#include "platform.hpp"
+
+
 namespace pbr {
 
 
@@ -12,6 +15,10 @@ class Mesh {
 public:
 
 private:
+};
+
+
+class Texture {
 };
 
 

@@ -13,7 +13,6 @@ endif()
 
 include_directories(SYSTEM
   ${CMAKE_SOURCE_DIR}/math
-  ${CMAKE_SOURCE_DIR}/external/assimp/include
   ${CMAKE_SOURCE_DIR}/external/freetype/include
   ${CMAKE_SOURCE_DIR}/external/glslang
   ${CMAKE_SOURCE_DIR}/external/glfw/include
@@ -35,6 +34,8 @@ set(PBR_SRC
   platform.hpp
   shader.hpp
   shader.cpp
+  stb_image.h
+  tiny_obj_loader.h
 )
 
 add_executable(${PBR_NAME}
@@ -48,7 +49,6 @@ target_compile_definitions(${PBR_NAME} PRIVATE
 
 target_link_libraries(${PBR_NAME}
   ${Vulkan_LIBRARY}
-  assimp
   glfw
   glslang
   SPIRV
