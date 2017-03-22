@@ -139,7 +139,10 @@ protected:
   void CreateGraphicsPipeline();
   void CreateRenderPasses();
   void CreateFramebuffers();
-
+  void CreateCommandPool();
+  void CreateCommandBuffers();
+  void CreateSemaphores();
+  virtual void Draw();
   ///
   VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
   VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
@@ -154,31 +157,32 @@ protected:
 
   /// Device semaphores.
   struct {
-    VkSemaphore present;
+    VkSemaphore presentation;
     VkSemaphore rendering;
   } m_semaphores;
   
-  VkPhysicalDevice            m_physicalDev;
-  VkDevice                    m_logicalDev;
-  VkSurfaceKHR                m_surface; // TODO(): This needs to be global.
-  VkSwapchainKHR              m_swapchain;  
-  std::vector<VkImage>        m_swapchainImages;
-  std::vector<VkImageView>    m_swapchainImageViews;
-  std::vector<VkFramebuffer>  m_framebuffers;
-  VkFormat                    m_swapchainFormat;
-  VkExtent2D                  m_swapchainExtent;
-  VkCommandPool               m_commandPool;
-  VkPipelineLayout            m_pipelineLayout;
-  VkRenderPass                m_defaultRenderPass;
-  VkPipeline                  m_pbrPipeline;
-  VkDebugReportCallbackEXT    m_callback;
-  VkDeviceMemory              m_commandMem;
-  global::Window              m_window;
-  uint32_t                    window_width;
-  uint32_t                    window_height;
-  Camera                      m_camera;
-  double                      m_lastTime;
-  double                      m_dt;
+  VkPhysicalDevice              m_physicalDev;
+  VkDevice                      m_logicalDev;
+  VkSurfaceKHR                  m_surface; // TODO(): This needs to be global.
+  VkSwapchainKHR                m_swapchain;  
+  std::vector<VkImage>          m_swapchainImages;
+  std::vector<VkImageView>      m_swapchainImageViews;
+  std::vector<VkFramebuffer>    m_swapchainFramebuffers;
+  std::vector<VkCommandBuffer>  m_commandbuffers;
+  VkFormat                      m_swapchainFormat;
+  VkExtent2D                    m_swapchainExtent;
+  VkCommandPool                 m_commandPool;
+  VkPipelineLayout              m_pipelineLayout;
+  VkRenderPass                  m_defaultRenderPass;
+  VkPipeline                    m_pbrPipeline;
+  VkDebugReportCallbackEXT      m_callback;
+  VkDeviceMemory                m_commandMem;
+  global::Window                m_window;
+  uint32_t                      window_width;
+  uint32_t                      window_height;
+  Camera                        m_camera;
+  double                        m_lastTime;
+  double                        m_dt;
 };
 } // pbr
 #endif // __BASE_HPP
