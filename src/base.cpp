@@ -542,6 +542,87 @@ void Base::CreateGraphicsPipeline()
   VkShaderModule frag = ShaderModule::GenerateShaderModule(m_logicalDev,
     ShaderModule::ssFragShader, "../../pbr-study/shaders/test.frag");
 
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo = { };
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = vert;
+  vertShaderStageInfo.pName = ShaderModule::GetStdEntryPoint();
+
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo = { };
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT; 
+  fragShaderStageInfo.module = frag;
+  fragShaderStageInfo.pName = ShaderModule::GetStdEntryPoint();
+
+  VkPipelineShaderStageCreateInfo shaderInfos[] = { vertShaderStageInfo, fragShaderStageInfo };
+
+  VkPipelineVertexInputStateCreateInfo vertexInputStateinfo = { };
+  vertexInputStateinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+  vertexInputStateinfo.pVertexAttributeDescriptions = nullptr;
+  vertexInputStateinfo.vertexAttributeDescriptionCount = 0;
+  vertexInputStateinfo.pVertexBindingDescriptions = nullptr;
+  vertexInputStateinfo.vertexBindingDescriptionCount = 0;
+
+  VkPipelineInputAssemblyStateCreateInfo inputAssemblyCreateInfo = { };
+  inputAssemblyCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  inputAssemblyCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  inputAssemblyCreateInfo.primitiveRestartEnable = VK_FALSE;
+
+  VkPipelineTessellationStateCreateInfo tesseCreateInfo = { };
+  tesseCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;  
+  tesseCreateInfo.patchControlPoints = 3;
+  tesseCreateInfo.pNext = nullptr;
+  tesseCreateInfo.flags = 0;
+
+  VkViewport viewport = { };
+  viewport.x = viewport.y = 0.0f;
+  viewport.width = static_cast<float>(m_swapchainExtent.width);
+  viewport.height = static_cast<float>(m_swapchainExtent.height);
+  viewport.minDepth = 0.0f;
+  viewport.maxDepth = 1.0f;  
+  
+  VkRect2D scissor = { };
+  scissor.offset.x = scissor.offset.y = 0;
+  scissor.extent = m_swapchainExtent;
+
+  // This can be a dynamic state as well, but we don't need to manually
+  // define the viewport state unless we are doing other things besides pbr.
+  VkPipelineViewportStateCreateInfo viewportStateCreateInfo = { };
+  viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;  
+  viewportStateCreateInfo.pViewports = &viewport;
+  viewportStateCreateInfo.viewportCount = 1;
+  viewportStateCreateInfo.scissorCount = 1;
+  viewportStateCreateInfo.pScissors = &scissor; 
+ 
+  VkPipelineRasterizationStateCreateInfo rasterStateCreateInfo = { };
+  rasterStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  rasterStateCreateInfo.depthClampEnable = VK_FALSE;
+  rasterStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
+  rasterStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+  rasterStateCreateInfo.lineWidth = 1.0f;
+  rasterStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+  rasterStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;  
+  rasterStateCreateInfo.depthBiasEnable = VK_FALSE;
+  rasterStateCreateInfo.depthBiasClamp = 0.0f;
+  rasterStateCreateInfo.depthBiasConstantFactor = 0.0f;
+  rasterStateCreateInfo.depthBiasSlopeFactor = 0.0f;
+
+  VkPipelineMultisampleStateCreateInfo multisampleCreateInfo = { };
+  multisampleCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+  multisampleCreateInfo.sampleShadingEnable = VK_FALSE;
+  multisampleCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+  multisampleCreateInfo.minSampleShading = 1.0f;
+  multisampleCreateInfo.pSampleMask = nullptr;
+  multisampleCreateInfo.alphaToCoverageEnable = VK_FALSE;
+  multisampleCreateInfo.alphaToOneEnable = VK_FALSE;
+
+  VkPipelineDepthStencilStateCreateInfo depthStencilCreateInfo = { };
+  depthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depthStencilCreateInfo.depthTestEnable = VK_TRUE;
+
+  VkPipelineColorBlendAttachmentState colorBlendAttachment = { };
+  
+
   vkDestroyShaderModule(m_logicalDev, vert, nullptr);
   vkDestroyShaderModule(m_logicalDev, frag, nullptr);
 }
