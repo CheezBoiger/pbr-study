@@ -24,6 +24,9 @@ typedef struct GLFWwindow *Window;
 } // global
 
 
+class Shader;
+
+
 /// Base class handles simple base stuff...
 /// This service as a simple base class for initializing the KHR surface
 /// for rendering, framebuffers, renderpasses, semaphores, queues, etc for our 
@@ -85,12 +88,57 @@ protected:
   QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device);
   SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice device);
 
+  /// Creates the KHR Surface used for Vulkan to present rendering onto the window.
+  /// Without it, vulkan would not know how to present onto the window display,
+  /// and thus, would not be able to create Images used for rendering onto.
   void CreateSurface();
+
+  /// Creates the Logical device from it's physical device. Sounds crazy I know,
+  /// but here's the reason: The Physical Device describes the physical hardware of
+  /// the GPU, but the Logical Device is pretty much the object responsible for handling
+  /// of logical queues, structures, images, swapchains, etc. This is a pretty neat abstraction
+  /// from the hardware features and properties, and the logical high level of the API. That way,
+  /// the Graphics Programmer has an easier time understanding the computer science part, from
+  /// the more specific stuff of the machine.
   void CreateLogicalDevice();
+
+  /// Find a suitable physical device. The physical device is the GPU and it's available features,
+  /// properties, extensions, and whatnot. All of this is practically vendor specific, with some 
+  /// few common items found. This is practically where most of the hardware specific stuff is going
+  /// to be coming from, and the programmer will likely always use the physical device to query from
+  /// the actual GPU about what device they are dealing with, and what is available for use. This 
+  /// pretty much separates the OS, GPU, and whatnot, from the abstract part of rendering. 
   void FindPhyiscalDevice();
+
+  /// Setup the debug callback. Since Vulkan has you explicitly write everything to tell it what
+  /// to do, we pretty much need to set up it's validation layers, as well as message structure.
+  /// We also need to tell it how to relay messages back to the application when a error is caught.
+  /// Tedious work, but it is a very nice thing, considering validation can be turned off to speed
+  /// up performance.
   void SetDebugCallback();
+
+  /// Create the swapchain. The Swapchain is basically a queue with images created with the 
+  /// KHR surface, that is used to display onto the window. Depending on the machine, there can
+  /// be multiple images that can be stored inside the swapchain, for use when displaying. 
+  /// Without the swapchain, Vulkan would not know how to display the image onto the window. 
+  /// This is where we deal with how an image is presented, it's color space, along with its
+  /// format.
   void CreateSwapChain();
+
+  /// Things get more interesting as we need to create ImageViews just to be able to view swapchain
+  /// images. without them, there is no way of telling Vulkan how the images should be interpreted.
+  /// So pretty much we are telling Vulkan how to handle these images with the swapchain, what these
+  /// images are in the Images buffer, and how they need to be interpreted in this function.
+  void CreateImageViews();
+
+  /// Check if the physical device that we are inspecting, is suitable to use. This is solely
+  /// based on what the application demands from the physical device, by that I mean what the
+  /// programmer needs from the physical device for this application. Programmer can see the 
+  /// physical device's capabilities, features, and extensions.
   bool IsDeviceSuitable(VkPhysicalDevice device);
+  void CreateGraphicsPipeline();
+
+  ///
   VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
   VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
   VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
@@ -113,14 +161,15 @@ protected:
   VkSurfaceKHR                m_surface; // TODO(): This needs to be global.
   VkSwapchainKHR              m_swapchain;  
   std::vector<VkImage>        m_swapchainImages;
+  std::vector<VkImageView>    m_swapchainImageViews;
   VkFormat                    m_swapchainFormat;
   VkExtent2D                  m_swapchainExtent;
   VkCommandPool               m_commandPool;
   VkDebugReportCallbackEXT    m_callback;
   VkDeviceMemory              m_commandMem;
   global::Window              m_window;
-  uint32_t window_width;
-  uint32_t window_height;
+  uint32_t                    window_width;
+  uint32_t                    window_height;
   Camera                      m_camera;
   double                      m_lastTime;
   double                      m_dt;

@@ -2,6 +2,7 @@
 // Copyright (c) Mario Garcia, MIT License.
 //
 #include "base.hpp"
+#include "shader.hpp"
 #include <GLFW/glfw3.h>
 
 #include <string>
@@ -206,6 +207,11 @@ Base::~Base()
   vkDestroySemaphore(m_logDev, m_semaphores.present, nullptr);
   vkDestroySemaphore(m_logDev, m_semaphores.rendering, nullptr);
 */
+  // Destroy swapchain image views
+  for (uint32_t i = 0; i < m_swapchainImageViews.size(); ++i) {
+    vkDestroyImageView(m_logicalDev, m_swapchainImageViews[i], nullptr);
+  }
+
   vkDestroySwapchainKHR(m_logicalDev, m_swapchain, nullptr);
   vkDestroySurfaceKHR(global::GetInstance(), m_surface, nullptr);
   vkDestroyDevice(m_logicalDev, nullptr);
@@ -505,6 +511,42 @@ void Base::CreateSwapChain()
 }
 
 
+void Base::CreateImageViews()
+{
+  m_swapchainImageViews.resize(m_swapchainImages.size());
+  for (uint32_t i = 0; i < m_swapchainImages.size(); ++i) {
+    VkImageViewCreateInfo imageViewCreateInfo = { };
+    imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    imageViewCreateInfo.image = m_swapchainImages[i];
+    imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    imageViewCreateInfo.format = m_swapchainFormat;
+    imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+    imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+    imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+    imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+    imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+    imageViewCreateInfo.subresourceRange.layerCount = 1;
+    imageViewCreateInfo.subresourceRange.levelCount = 1;
+    VkResult result = vkCreateImageView(m_logicalDev, &imageViewCreateInfo, nullptr, &m_swapchainImageViews[i]);
+    BASE_ASSERT(result == VK_SUCCESS && "Swapchain ImageView failed to create!");
+  }
+}
+
+
+void Base::CreateGraphicsPipeline()
+{
+  VkShaderModule vert = ShaderModule::GenerateShaderModule(m_logicalDev, 
+    ShaderModule::ssVertShader, "../../pbr-study/shaders/test.vert");
+  VkShaderModule frag = ShaderModule::GenerateShaderModule(m_logicalDev,
+    ShaderModule::ssFragShader, "../../pbr-study/shaders/test.frag");
+
+  vkDestroyShaderModule(m_logicalDev, vert, nullptr);
+  vkDestroyShaderModule(m_logicalDev, frag, nullptr);
+}
+
+
 void Base::Initialize()
 {
   SetDebugCallback();
@@ -512,6 +554,8 @@ void Base::Initialize()
   FindPhyiscalDevice();
   CreateLogicalDevice();
   CreateSwapChain();
+  CreateImageViews();
+  CreateGraphicsPipeline();
 }
 
 

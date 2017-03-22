@@ -33,6 +33,8 @@ set(PBR_SRC
   renderer.hpp
   vertex.hpp
   platform.hpp
+  shader.hpp
+  shader.cpp
 )
 
 add_executable(${PBR_NAME}
@@ -48,4 +50,6 @@ target_link_libraries(${PBR_NAME}
   ${Vulkan_LIBRARY}
   assimp
   glfw
+  glslang
+  SPIRV
 )
