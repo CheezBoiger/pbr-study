@@ -8,9 +8,8 @@
 #include <iostream>
 
 int main(int c, char *argv[]) {
-  std::cout << "Testing...\n";
+  std::cout << "Physically Based Rendering Study...\n";
   std::cout << "PBR_VERSION: " << PBR_CURRENT_VERSION << "\n";
-  std::cin.ignore();
   pbr::Base base;
   base.SetupWindow(1440, 900);
   base.Initialize();

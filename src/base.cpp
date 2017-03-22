@@ -212,6 +212,9 @@ Base::~Base()
     vkDestroyImageView(m_logicalDev, m_swapchainImageViews[i], nullptr);
   }
 
+  vkDestroyPipeline(m_logicalDev, m_pbrPipeline, nullptr);
+  vkDestroyRenderPass(m_logicalDev, m_defaultRenderPass, nullptr);
+  vkDestroyPipelineLayout(m_logicalDev, m_pipelineLayout, nullptr);
   vkDestroySwapchainKHR(m_logicalDev, m_swapchain, nullptr);
   vkDestroySurfaceKHR(global::GetInstance(), m_surface, nullptr);
   vkDestroyDevice(m_logicalDev, nullptr);
@@ -621,10 +624,114 @@ void Base::CreateGraphicsPipeline()
   depthStencilCreateInfo.depthTestEnable = VK_TRUE;
 
   VkPipelineColorBlendAttachmentState colorBlendAttachment = { };
+  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+    VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  colorBlendAttachment.blendEnable = VK_FALSE;
+  colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+  colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+  colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+  colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+  colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+  VkPipelineColorBlendStateCreateInfo colorBlendStateCreateInfo = { };
+  colorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  colorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
+  colorBlendStateCreateInfo.logicOp = VK_LOGIC_OP_COPY;
+  colorBlendStateCreateInfo.attachmentCount = 1;
+  colorBlendStateCreateInfo.pAttachments = &colorBlendAttachment;
+  colorBlendStateCreateInfo.blendConstants[0] = 0.0f;
+  colorBlendStateCreateInfo.blendConstants[1] = 0.0f;
+  colorBlendStateCreateInfo.blendConstants[2] = 0.0f;
+  colorBlendStateCreateInfo.blendConstants[3] = 0.0f;
+
+
+  VkDynamicState dynamicStates[] = {
+    VK_DYNAMIC_STATE_VIEWPORT,
+    VK_DYNAMIC_STATE_LINE_WIDTH
+  };
+
+  VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = { };
+  dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+  dynamicStateCreateInfo.dynamicStateCount = 2;
+  dynamicStateCreateInfo.pDynamicStates = dynamicStates;
   
+  VkPipelineLayoutCreateInfo pipelineLayoutCreatInfo = { };
+  pipelineLayoutCreatInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  pipelineLayoutCreatInfo.setLayoutCount = 0;
+  pipelineLayoutCreatInfo.pSetLayouts = nullptr;
+  pipelineLayoutCreatInfo.pushConstantRangeCount = 0;
+  pipelineLayoutCreatInfo.pPushConstantRanges = nullptr;
+
+  VkResult result = vkCreatePipelineLayout(m_logicalDev, 
+    &pipelineLayoutCreatInfo, nullptr, &m_pipelineLayout);
+  BASE_ASSERT(result == VK_SUCCESS);
+
+  // Now create the graphics pipeline.
+  VkGraphicsPipelineCreateInfo gPipelineCreateInfo = { };
+  gPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+  gPipelineCreateInfo.stageCount = 2;
+  gPipelineCreateInfo.pStages = shaderInfos;
+  gPipelineCreateInfo.pVertexInputState  = &vertexInputStateinfo;
+  gPipelineCreateInfo.pInputAssemblyState = &inputAssemblyCreateInfo;
+  gPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
+  gPipelineCreateInfo.pRasterizationState = &rasterStateCreateInfo;
+  gPipelineCreateInfo.pMultisampleState = &multisampleCreateInfo;
+  gPipelineCreateInfo.pDepthStencilState = &depthStencilCreateInfo;
+  gPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
+  gPipelineCreateInfo.pDynamicState = nullptr;
+  gPipelineCreateInfo.layout = m_pipelineLayout;
+  gPipelineCreateInfo.renderPass = m_defaultRenderPass;
+  // For deriving from a base pipeline (parent). This is a single pipeline, so
+  // we aren't deriving from any other pipeline.
+  gPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+  gPipelineCreateInfo.basePipelineIndex = -1;
+
+  result = vkCreateGraphicsPipelines(m_logicalDev, VK_NULL_HANDLE, 1, 
+    &gPipelineCreateInfo, nullptr, &m_pbrPipeline);
+  BASE_ASSERT(result == VK_SUCCESS && "Failed to create PBR graphics pipeline!");
 
   vkDestroyShaderModule(m_logicalDev, vert, nullptr);
   vkDestroyShaderModule(m_logicalDev, frag, nullptr);
+}
+
+
+void Base::CreateRenderPasses()
+{
+  // This is the actual attachment to be bound to 
+  // the renderpass.
+  VkAttachmentDescription colorAttachment = { };
+  colorAttachment.format = m_swapchainFormat;
+  colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+  colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+  colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+  colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+  colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+  colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+  // layout (location = 0) reference. Can be used in multiple renderpasses.
+  VkAttachmentReference attachmentRef = { };
+  attachmentRef.attachment = 0; // attachment location
+  attachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+  // This subpass describes attachment references, as well as it's binding 
+  // point (which is for graphics pipelines, whereas it can also bind to 
+  // compute pipelines if explicitly told so) to be used for multiple renderpasses.
+  VkSubpassDescription subpass = { };
+  subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+  subpass.colorAttachmentCount = 1;
+  subpass.pColorAttachments = &attachmentRef;
+
+  VkRenderPassCreateInfo renderpassCreateInfo = { };
+  renderpassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+  renderpassCreateInfo.attachmentCount = 1;
+  renderpassCreateInfo.pAttachments = &colorAttachment;
+  renderpassCreateInfo.subpassCount = 1;
+  renderpassCreateInfo.pSubpasses = &subpass;
+  
+  VkResult result = vkCreateRenderPass(m_logicalDev, &renderpassCreateInfo, nullptr, &m_defaultRenderPass);
+  BASE_ASSERT(result == VK_SUCCESS);
 }
 
 
@@ -636,6 +743,7 @@ void Base::Initialize()
   CreateLogicalDevice();
   CreateSwapChain();
   CreateImageViews();
+  CreateRenderPasses();
   CreateGraphicsPipeline();
 }
 

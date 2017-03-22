@@ -137,6 +137,7 @@ protected:
   /// physical device's capabilities, features, and extensions.
   bool IsDeviceSuitable(VkPhysicalDevice device);
   void CreateGraphicsPipeline();
+  void CreateRenderPasses();
 
   ///
   VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
@@ -165,6 +166,9 @@ protected:
   VkFormat                    m_swapchainFormat;
   VkExtent2D                  m_swapchainExtent;
   VkCommandPool               m_commandPool;
+  VkPipelineLayout            m_pipelineLayout;
+  VkRenderPass                m_defaultRenderPass;
+  VkPipeline                  m_pbrPipeline;
   VkDebugReportCallbackEXT    m_callback;
   VkDeviceMemory              m_commandMem;
   global::Window              m_window;
