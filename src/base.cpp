@@ -141,10 +141,10 @@ VkInstance CreateInstance()
   instanceCreateInfo.pApplicationInfo = &appInfo;
   
   auto extensions = GetRequiredExtensions();
-  instanceCreateInfo.enabledExtensionCount = extensions.size();
+  instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
   instanceCreateInfo.ppEnabledExtensionNames = extensions.data();
   if (enableValidationLayers) {
-    instanceCreateInfo.enabledLayerCount = validationLayers.size();
+    instanceCreateInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
     instanceCreateInfo.ppEnabledLayerNames = validationLayers.data();
   } else {
     instanceCreateInfo.enabledLayerCount = 0;
@@ -438,10 +438,10 @@ void Base::CreateLogicalDevice()
   deviceCreateInfo.queueCreateInfoCount = (uint32_t )queueCreateInfos.size();
   deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
   deviceCreateInfo.pEnabledFeatures = &phyDevFeatures;
-  deviceCreateInfo.enabledExtensionCount = global::deviceExensions.size();
+  deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(global::deviceExensions.size());
   deviceCreateInfo.ppEnabledExtensionNames = global::deviceExensions.data();
   if (global::enableValidationLayers) {
-    deviceCreateInfo.enabledLayerCount = global::validationLayers.size();
+    deviceCreateInfo.enabledLayerCount = static_cast<uint32_t>(global::validationLayers.size());
     deviceCreateInfo.ppEnabledLayerNames = global::validationLayers.data();
   }
   VkResult result = vkCreateDevice(m_physicalDev, &deviceCreateInfo, nullptr, &m_logicalDev);

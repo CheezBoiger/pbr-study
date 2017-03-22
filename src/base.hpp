@@ -138,6 +138,7 @@ protected:
   bool IsDeviceSuitable(VkPhysicalDevice device);
   void CreateGraphicsPipeline();
   void CreateRenderPasses();
+  void CreateFramebuffers();
 
   ///
   VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
@@ -163,6 +164,7 @@ protected:
   VkSwapchainKHR              m_swapchain;  
   std::vector<VkImage>        m_swapchainImages;
   std::vector<VkImageView>    m_swapchainImageViews;
+  std::vector<VkFramebuffer>  m_framebuffers;
   VkFormat                    m_swapchainFormat;
   VkExtent2D                  m_swapchainExtent;
   VkCommandPool               m_commandPool;
