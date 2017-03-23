@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <iostream>
 #include <array>
+#include <chrono>
 
 #define BASE_DEBUG
 #if defined(BASE_DEBUG)
@@ -213,13 +214,13 @@ std::array<VkVertexInputAttributeDescription, 2> GetAttributeDescriptions()
   attributeDescriptions[0].location = 0;
   attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
   attributeDescriptions[0].offset = offset;
-  offset += sizeof(Vec3);
+  offset += sizeof(glm::vec3);
   
   attributeDescriptions[1].binding = 0;
   attributeDescriptions[1].location = 1;
   attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
   attributeDescriptions[1].offset = offset;
-  offset += sizeof(Vec3);
+  offset += sizeof(glm::vec3);
 
   return attributeDescriptions;
 }
@@ -227,15 +228,28 @@ std::array<VkVertexInputAttributeDescription, 2> GetAttributeDescriptions()
 
 // test vertices.
 const std::vector<Vertex> vertices = {
-  { {  0.0f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
-  { {  0.5f,  0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
-  { { -0.5f,  0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f } }
+  { { -0.5f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
+  { {  0.5f, -0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+  { {  0.5f,  0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
+  { { -0.5f,  0.5f, 0.0f }, { 1.0f, 1.0f, 1.0f } }
 };
+
+const std::vector<uint16_t> indices = {
+  0, 1, 2, 2, 3, 0 
+}; 
 } // global
 
 
+// Global Uniform Buffer Object
+struct UBO {
+  glm::mat4 Model;
+  glm::mat4 View;
+  glm::mat4 Projection;
+} ubo;
+
+
 Base::Base()
-  : m_swapchain(VK_NULL_HANDLE)
+  : mSwapchain(VK_NULL_HANDLE)
 {
   glfwInit();
 }
@@ -245,27 +259,35 @@ Base::~Base()
 {
   CloseWindow();
   Cleanup();
-  vkDestroySemaphore(m_logicalDev, m_semaphores.presentation, nullptr);
-  vkDestroySemaphore(m_logicalDev, m_semaphores.rendering, nullptr);
+  vkDestroySemaphore(mLogicalDevice, mSemaphores.presentation, nullptr);
+  vkDestroySemaphore(mLogicalDevice, mSemaphores.rendering, nullptr);
   // Destroy swapchain image views
-  for (size_t i = 0; i < m_swapchainImageViews.size(); ++i) {
-    vkDestroyImageView(m_logicalDev, m_swapchainImageViews[i], nullptr);
-    vkDestroyFramebuffer(m_logicalDev, m_swapchainFramebuffers[i], nullptr);
+  for (size_t i = 0; i < mSwapchainImageViews.size(); ++i) {
+    vkDestroyImageView(mLogicalDevice, mSwapchainImageViews[i], nullptr);
+    vkDestroyFramebuffer(mLogicalDevice, mSwapchainFramebuffers[i], nullptr);
   }
 
-  vkFreeCommandBuffers(m_logicalDev, m_commandPool, 
-    static_cast<uint32_t>(m_commandbuffers.size()), m_commandbuffers.data());
+  vkFreeCommandBuffers(mLogicalDevice, mCommandPool, 
+    static_cast<uint32_t>(mCommandBuffers.size()), mCommandBuffers.data());
 
-  vkFreeMemory(m_logicalDev, m_vertexbufferMem, nullptr);
-  vkDestroyBuffer(m_logicalDev, m_vertexbuffer, nullptr);
-  vkDestroyCommandPool(m_logicalDev, m_commandPool, nullptr);
-  vkDestroyPipeline(m_logicalDev, m_pbrPipeline, nullptr);
-  vkDestroyRenderPass(m_logicalDev, m_defaultRenderPass, nullptr);
-  vkDestroyPipelineLayout(m_logicalDev, m_pipelineLayout, nullptr);
-  vkDestroySwapchainKHR(m_logicalDev, m_swapchain, nullptr);
-  vkDestroySurfaceKHR(global::GetInstance(), m_surface, nullptr);
-  vkDestroyDevice(m_logicalDev, nullptr);
-  DestroyDebugReportCallbackEXT(global::GetInstance(), m_callback, nullptr);
+  vkFreeMemory(mLogicalDevice, mUbo.stagingMemory, nullptr);
+  vkFreeMemory(mLogicalDevice, mUbo.memory, nullptr);
+  vkDestroyBuffer(mLogicalDevice, mUbo.buffer, nullptr);
+  vkDestroyBuffer(mLogicalDevice, mUbo.stagingBuffer, nullptr);
+  vkDestroyDescriptorSetLayout(mLogicalDevice, mDescriptorSetLayoutUbo, nullptr);
+  vkDestroyDescriptorPool(mLogicalDevice, mDescriptorPoolUbo, nullptr);
+  vkFreeMemory(mLogicalDevice, mesh.vertexMemory, nullptr);
+  vkFreeMemory(mLogicalDevice, mesh.indicesMemory, nullptr);
+  vkDestroyBuffer(mLogicalDevice, mesh.indicesBuffer, nullptr);
+  vkDestroyBuffer(mLogicalDevice, mesh.vertexBuffer, nullptr);
+  vkDestroyCommandPool(mLogicalDevice, mCommandPool, nullptr);
+  vkDestroyPipeline(mLogicalDevice, mPbrPipeline, nullptr);
+  vkDestroyRenderPass(mLogicalDevice, mDefaultRenderPass, nullptr);
+  vkDestroyPipelineLayout(mLogicalDevice, mPipelineLayout, nullptr);
+  vkDestroySwapchainKHR(mLogicalDevice, mSwapchain, nullptr);
+  vkDestroySurfaceKHR(global::GetInstance(), mSurface, nullptr);
+  vkDestroyDevice(mLogicalDevice, nullptr);
+  DestroyDebugReportCallbackEXT(global::GetInstance(), mCallback, nullptr);
   vkDestroyInstance(global::GetInstance(), nullptr);
 }
 
@@ -282,14 +304,14 @@ void Base::SetupWindow(uint32_t width, uint32_t height)
 {
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
-  m_window = glfwCreateWindow(width, height, "PBR Test Vulkan", nullptr, nullptr);
-  glfwMakeContextCurrent(m_window);
+  mWindow = glfwCreateWindow(width, height, "PBR Test Vulkan", nullptr, nullptr);
+  glfwMakeContextCurrent(mWindow);
 
   // Set the reference to the object that has ownership of this window.
-  glfwSetWindowUserPointer(m_window, this);
+  glfwSetWindowUserPointer(mWindow, this);
 
-  glfwSetKeyCallback(m_window, global::KeyCallback);
-  glfwSetWindowSizeCallback(m_window, Base::OnWindowResized);
+  glfwSetKeyCallback(mWindow, global::KeyCallback);
+  glfwSetWindowSizeCallback(mWindow, Base::OnWindowResized);
 #if defined(_WIN32)
   //HWND console = GetConsoleWindow();
   //ShowWindow(console, SW_HIDE);
@@ -300,19 +322,19 @@ void Base::SetupWindow(uint32_t width, uint32_t height)
 Base::SwapChainSupportDetails Base::QuerySwapChainSupport(VkPhysicalDevice device)
 {
   SwapChainSupportDetails details;
-  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, m_surface, &details.capabilities);
+  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, mSurface, &details.capabilities);
   uint32_t formatCount;
-  vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_surface, &formatCount, nullptr);
+  vkGetPhysicalDeviceSurfaceFormatsKHR(device, mSurface, &formatCount, nullptr);
   if (formatCount > 0) {
     details.formats.resize(formatCount);
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_surface, 
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, mSurface, 
       &formatCount, details.formats.data());
   }
   uint32_t presentCount;
-  vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_surface, &presentCount, nullptr);
+  vkGetPhysicalDeviceSurfacePresentModesKHR(device, mSurface, &presentCount, nullptr);
   if (presentCount > 0) {
     details.presentModes.resize(presentCount);
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_surface, 
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, mSurface, 
       &presentCount, details.presentModes.data());
   }
 
@@ -322,10 +344,10 @@ Base::SwapChainSupportDetails Base::QuerySwapChainSupport(VkPhysicalDevice devic
 
 void Base::CloseWindow()
 {
-  if (m_window) {
-    glfwSetWindowShouldClose(m_window, GL_TRUE);
+  if (mWindow) {
+    glfwSetWindowShouldClose(mWindow, GL_TRUE);
   }
-  glfwDestroyWindow(m_window);
+  glfwDestroyWindow(mWindow);
 }
 
 
@@ -337,7 +359,7 @@ void Base::SetDebugCallback()
   createInfo.pfnCallback = DebugCallback;
 
   VkResult result = CreateDebugReportCallbackEXT(
-    global::GetInstance(), &createInfo, nullptr, &m_callback);
+    global::GetInstance(), &createInfo, nullptr, &mCallback);
 }
 
 
@@ -389,11 +411,11 @@ void Base::FindPhyiscalDevice()
     &count, physicalDevices.data());
   for (const auto &device : physicalDevices) {
     if (IsDeviceSuitable(device)) {
-      m_physicalDev = device;
+      mPhysicalDevice = device;
       break;
     }
   }
-  BASE_ASSERT(m_physicalDev != VK_NULL_HANDLE && "Base member m_phyDev is still NULL!!"); 
+  BASE_ASSERT(mPhysicalDevice != VK_NULL_HANDLE && "Base member m_phyDev is still NULL!!"); 
 }
 
 
@@ -433,7 +455,7 @@ VkExtent2D Base::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities)
     return capabilities.currentExtent;
   } else {
     int32_t width, height;
-    glfwGetWindowSize(m_window, &width, &height);
+    glfwGetWindowSize(mWindow, &width, &height);
     VkExtent2D actualExtent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
     actualExtent.width = (std::max)(capabilities.minImageExtent.width, 
       (std::min)(capabilities.maxImageExtent.width, actualExtent.width));
@@ -462,7 +484,7 @@ Base::QueueFamilyIndices Base::FindQueueFamilies(VkPhysicalDevice device)
   uint32_t i = 0;
   for (const auto &queueFamily : queueFamilies) {
     VkBool32 presentSupport = false;
-    vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_surface, &presentSupport);
+    vkGetPhysicalDeviceSurfaceSupportKHR(device, i, mSurface, &presentSupport);
     if (queueFamily.queueCount > 0 && queueFamily.queueFlags  & VK_QUEUE_GRAPHICS_BIT) {
       indices.graphicsFamily = i;
     }
@@ -481,7 +503,7 @@ Base::QueueFamilyIndices Base::FindQueueFamilies(VkPhysicalDevice device)
 
 void Base::CreateLogicalDevice()
 {
-  QueueFamilyIndices indices = FindQueueFamilies(m_physicalDev);
+  QueueFamilyIndices indices = FindQueueFamilies(mPhysicalDevice);
   float queuePriority = 1.0f;
   std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
   std::set<int32_t> uniqueQueueFamilies = { indices.graphicsFamily, indices.presentFamily };
@@ -506,26 +528,26 @@ void Base::CreateLogicalDevice()
     deviceCreateInfo.enabledLayerCount = static_cast<uint32_t>(global::validationLayers.size());
     deviceCreateInfo.ppEnabledLayerNames = global::validationLayers.data();
   }
-  VkResult result = vkCreateDevice(m_physicalDev, &deviceCreateInfo, nullptr, &m_logicalDev);
+  VkResult result = vkCreateDevice(mPhysicalDevice, &deviceCreateInfo, nullptr, &mLogicalDevice);
   BASE_ASSERT(result == VK_SUCCESS  && "Failed to create a logical device...");
 
   // Get the device queue.
-  vkGetDeviceQueue(m_logicalDev, indices.graphicsFamily, 0, &m_queue.rendering);
-  vkGetDeviceQueue(m_logicalDev, indices.presentFamily, 0, &m_queue.presentation);
+  vkGetDeviceQueue(mLogicalDevice, indices.graphicsFamily, 0, &mQueues.rendering);
+  vkGetDeviceQueue(mLogicalDevice, indices.presentFamily, 0, &mQueues.presentation);
 }
 
 
 void Base::CreateSurface()
 {
   VkResult result = glfwCreateWindowSurface(global::GetInstance(),
-    m_window, nullptr, &m_surface);
+    mWindow, nullptr, &mSurface);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to Create a KHR surface!");
 }
 
 
 void Base::CreateSwapChain()
 {
-  SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(m_physicalDev);
+  SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(mPhysicalDevice);
   VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat(swapChainSupport.formats);
   VkPresentModeKHR presentMode = ChooseSwapPresentMode(swapChainSupport.presentModes);
   VkExtent2D extent = ChooseSwapExtent(swapChainSupport.capabilities);
@@ -535,11 +557,11 @@ void Base::CreateSwapChain()
       imageCount > swapChainSupport.capabilities.maxImageCount) {
     imageCount = swapChainSupport.capabilities.maxImageCount;
   }
-  VkSwapchainKHR old_swapchain = m_swapchain;
+  VkSwapchainKHR old_swapchain = mSwapchain;
   VkSwapchainKHR new_swapchain;
   VkSwapchainCreateInfoKHR swapChainCreateInfo = { };
   swapChainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-  swapChainCreateInfo.surface = m_surface;
+  swapChainCreateInfo.surface = mSurface;
   swapChainCreateInfo.minImageCount = imageCount;
   swapChainCreateInfo.imageFormat = surfaceFormat.format;
   swapChainCreateInfo.imageColorSpace = surfaceFormat.colorSpace;
@@ -548,7 +570,7 @@ void Base::CreateSwapChain()
   // No offscreen rendering, unless needed. 
   swapChainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; 
 
-  QueueFamilyIndices indices = FindQueueFamilies(m_physicalDev);
+  QueueFamilyIndices indices = FindQueueFamilies(mPhysicalDevice);
   uint32_t queueFamilyIndices[] = { (uint32_t )indices.graphicsFamily, (uint32_t )indices.presentFamily };
   if (indices.graphicsFamily != indices.presentFamily) {
     swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
@@ -565,33 +587,33 @@ void Base::CreateSwapChain()
   swapChainCreateInfo.clipped = VK_TRUE;
   swapChainCreateInfo.oldSwapchain = old_swapchain;
  
-  VkResult result = vkCreateSwapchainKHR(m_logicalDev, &swapChainCreateInfo, nullptr, &new_swapchain);
+  VkResult result = vkCreateSwapchainKHR(mLogicalDevice, &swapChainCreateInfo, nullptr, &new_swapchain);
   BASE_ASSERT(result == VK_SUCCESS && "Swapchain failed to create!"); 
-  m_swapchain = new_swapchain;
-  vkGetSwapchainImagesKHR(m_logicalDev, m_swapchain, &imageCount, nullptr);
-  m_swapchainImages.resize(imageCount);
-  vkGetSwapchainImagesKHR(m_logicalDev, m_swapchain, &imageCount, m_swapchainImages.data());
+  mSwapchain = new_swapchain;
+  vkGetSwapchainImagesKHR(mLogicalDevice, mSwapchain, &imageCount, nullptr);
+  mSwapchainImages.resize(imageCount);
+  vkGetSwapchainImagesKHR(mLogicalDevice, mSwapchain, &imageCount, mSwapchainImages.data());
 
   // Keep track of swapchain format at extent.
-  m_swapchainFormat = surfaceFormat.format;
-  m_swapchainExtent = extent;
+  mSwapchainFormat = surfaceFormat.format;
+  mSwapchainExtent = extent;
 
   // If the old swapchain is a null handle, ignore having to delete it.
   if (old_swapchain != VK_NULL_HANDLE) {
-    vkDestroySwapchainKHR(m_logicalDev, old_swapchain, nullptr);
+    vkDestroySwapchainKHR(mLogicalDevice, old_swapchain, nullptr);
   }
 }
 
 
 void Base::CreateImageViews()
 {
-  m_swapchainImageViews.resize(m_swapchainImages.size());
-  for (uint32_t i = 0; i < m_swapchainImages.size(); ++i) {
+  mSwapchainImageViews.resize(mSwapchainImages.size());
+  for (uint32_t i = 0; i < mSwapchainImages.size(); ++i) {
     VkImageViewCreateInfo imageViewCreateInfo = { };
     imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    imageViewCreateInfo.image = m_swapchainImages[i];
+    imageViewCreateInfo.image = mSwapchainImages[i];
     imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    imageViewCreateInfo.format = m_swapchainFormat;
+    imageViewCreateInfo.format = mSwapchainFormat;
     imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
     imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
     imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -601,7 +623,8 @@ void Base::CreateImageViews()
     imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
     imageViewCreateInfo.subresourceRange.layerCount = 1;
     imageViewCreateInfo.subresourceRange.levelCount = 1;
-    VkResult result = vkCreateImageView(m_logicalDev, &imageViewCreateInfo, nullptr, &m_swapchainImageViews[i]);
+    VkResult result = vkCreateImageView(mLogicalDevice, &imageViewCreateInfo, 
+      nullptr, &mSwapchainImageViews[i]);
     BASE_ASSERT(result == VK_SUCCESS && "Swapchain ImageView failed to create!");
   }
 }
@@ -609,9 +632,9 @@ void Base::CreateImageViews()
 
 void Base::CreateGraphicsPipeline()
 {
-  VkShaderModule vert = ShaderModule::GenerateShaderModule(m_logicalDev, 
+  VkShaderModule vert = ShaderModule::GenerateShaderModule(mLogicalDevice, 
     ShaderModule::ssVertShader, "../../pbr-study/shaders/test.vert");
-  VkShaderModule frag = ShaderModule::GenerateShaderModule(m_logicalDev,
+  VkShaderModule frag = ShaderModule::GenerateShaderModule(mLogicalDevice,
     ShaderModule::ssFragShader, "../../pbr-study/shaders/test.frag");
 
   VkPipelineShaderStageCreateInfo vertShaderStageInfo = { };
@@ -651,14 +674,14 @@ void Base::CreateGraphicsPipeline()
 
   VkViewport viewport = { };
   viewport.x = viewport.y = 0.0f;
-  viewport.width = static_cast<float>(m_swapchainExtent.width);
-  viewport.height = static_cast<float>(m_swapchainExtent.height);
+  viewport.width = static_cast<float>(mSwapchainExtent.width);
+  viewport.height = static_cast<float>(mSwapchainExtent.height);
   viewport.minDepth = 0.0f;
   viewport.maxDepth = 1.0f;  
   
   VkRect2D scissor = { };
   scissor.offset.x = scissor.offset.y = 0;
-  scissor.extent = m_swapchainExtent;
+  scissor.extent = mSwapchainExtent;
 
   // This can be a dynamic state as well, but we don't need to manually
   // define the viewport state unless we are doing other things besides pbr.
@@ -676,7 +699,7 @@ void Base::CreateGraphicsPipeline()
   rasterStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
   rasterStateCreateInfo.lineWidth = 1.0f;
   rasterStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-  rasterStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;  
+  rasterStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;  
   rasterStateCreateInfo.depthBiasEnable = VK_FALSE;
   rasterStateCreateInfo.depthBiasClamp = 0.0f;
   rasterStateCreateInfo.depthBiasConstantFactor = 0.0f;
@@ -694,6 +717,8 @@ void Base::CreateGraphicsPipeline()
   VkPipelineDepthStencilStateCreateInfo depthStencilCreateInfo = { };
   depthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
   depthStencilCreateInfo.depthTestEnable = VK_TRUE;
+  depthStencilCreateInfo.minDepthBounds = 0.0;
+  depthStencilCreateInfo.maxDepthBounds = 1.0f;
 
   VkPipelineColorBlendAttachmentState colorBlendAttachment = { };
   colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
@@ -730,13 +755,13 @@ void Base::CreateGraphicsPipeline()
   
   VkPipelineLayoutCreateInfo pipelineLayoutCreatInfo = { };
   pipelineLayoutCreatInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutCreatInfo.setLayoutCount = 0;
-  pipelineLayoutCreatInfo.pSetLayouts = nullptr;
+  pipelineLayoutCreatInfo.setLayoutCount = 1;
+  pipelineLayoutCreatInfo.pSetLayouts = &mDescriptorSetLayoutUbo;
   pipelineLayoutCreatInfo.pushConstantRangeCount = 0;
   pipelineLayoutCreatInfo.pPushConstantRanges = nullptr;
 
-  VkResult result = vkCreatePipelineLayout(m_logicalDev, 
-    &pipelineLayoutCreatInfo, nullptr, &m_pipelineLayout);
+  VkResult result = vkCreatePipelineLayout(mLogicalDevice, 
+    &pipelineLayoutCreatInfo, nullptr, &mPipelineLayout);
   BASE_ASSERT(result == VK_SUCCESS);
 
   // Now create the graphics pipeline.
@@ -752,19 +777,19 @@ void Base::CreateGraphicsPipeline()
   gPipelineCreateInfo.pDepthStencilState = &depthStencilCreateInfo;
   gPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
   gPipelineCreateInfo.pDynamicState = nullptr;
-  gPipelineCreateInfo.layout = m_pipelineLayout;
-  gPipelineCreateInfo.renderPass = m_defaultRenderPass;
+  gPipelineCreateInfo.layout = mPipelineLayout;
+  gPipelineCreateInfo.renderPass = mDefaultRenderPass;
   // For deriving from a base pipeline (parent). This is a single pipeline, so
   // we aren't deriving from any other pipeline.
   gPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
   gPipelineCreateInfo.basePipelineIndex = -1;
 
-  result = vkCreateGraphicsPipelines(m_logicalDev, VK_NULL_HANDLE, 1, 
-    &gPipelineCreateInfo, nullptr, &m_pbrPipeline);
+  result = vkCreateGraphicsPipelines(mLogicalDevice, VK_NULL_HANDLE, 1, 
+    &gPipelineCreateInfo, nullptr, &mPbrPipeline);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to create PBR graphics pipeline!");
 
-  vkDestroyShaderModule(m_logicalDev, vert, nullptr);
-  vkDestroyShaderModule(m_logicalDev, frag, nullptr);
+  vkDestroyShaderModule(mLogicalDevice, vert, nullptr);
+  vkDestroyShaderModule(mLogicalDevice, frag, nullptr);
 }
 
 
@@ -773,7 +798,7 @@ void Base::CreateRenderPasses()
   // This is the actual attachment to be bound to 
   // the renderpass.
   VkAttachmentDescription colorAttachment = { };
-  colorAttachment.format = m_swapchainFormat;
+  colorAttachment.format = mSwapchainFormat;
   colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
   colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
   colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -814,28 +839,29 @@ void Base::CreateRenderPasses()
   renderpassCreateInfo.dependencyCount = 1;
   renderpassCreateInfo.pDependencies = &subpassDependency;
   
-  VkResult result = vkCreateRenderPass(m_logicalDev, &renderpassCreateInfo, nullptr, &m_defaultRenderPass);
+  VkResult result = vkCreateRenderPass(mLogicalDevice, &renderpassCreateInfo,
+    nullptr, &mDefaultRenderPass);
   BASE_ASSERT(result == VK_SUCCESS);
 }
 
 
 void Base::CreateFramebuffers()
 {
-  m_swapchainFramebuffers.resize(m_swapchainImageViews.size());
-  for (size_t i = 0; i < m_swapchainImageViews.size(); ++i) {
+  mSwapchainFramebuffers.resize(mSwapchainImageViews.size());
+  for (size_t i = 0; i < mSwapchainImageViews.size(); ++i) {
     VkImageView attachments[] {
-      m_swapchainImageViews[i]
+      mSwapchainImageViews[i]
     };
     VkFramebufferCreateInfo framebufferCreateInfo = { };
     framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    framebufferCreateInfo.renderPass = m_defaultRenderPass;
+    framebufferCreateInfo.renderPass = mDefaultRenderPass;
     framebufferCreateInfo.attachmentCount = 1;
     framebufferCreateInfo.pAttachments = attachments;
-    framebufferCreateInfo.width = m_swapchainExtent.width;
-    framebufferCreateInfo.height = m_swapchainExtent.height;
+    framebufferCreateInfo.width = mSwapchainExtent.width;
+    framebufferCreateInfo.height = mSwapchainExtent.height;
     framebufferCreateInfo.layers = 1;
-    VkResult result = vkCreateFramebuffer(m_logicalDev, &framebufferCreateInfo, 
-      nullptr, &m_swapchainFramebuffers[i]);
+    VkResult result = vkCreateFramebuffer(mLogicalDevice, &framebufferCreateInfo, 
+      nullptr, &mSwapchainFramebuffers[i]);
     BASE_ASSERT(result == VK_SUCCESS && "A Swapchain Framebuffer failed to create!");
   }
 }
@@ -843,56 +869,59 @@ void Base::CreateFramebuffers()
 
 void Base::CreateCommandPool()
 {
-  QueueFamilyIndices indices = FindQueueFamilies(m_physicalDev);
+  QueueFamilyIndices indices = FindQueueFamilies(mPhysicalDevice);
   VkCommandPoolCreateInfo commandPoolCreateInfo = { };
   commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   commandPoolCreateInfo.queueFamilyIndex = indices.graphicsFamily;
   commandPoolCreateInfo.flags = 0;
-  VkResult result = vkCreateCommandPool(m_logicalDev, &commandPoolCreateInfo, nullptr, &m_commandPool);
+  VkResult result = vkCreateCommandPool(mLogicalDevice, &commandPoolCreateInfo, nullptr, &mCommandPool);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to create a command pool!");
 }
 
 
 void Base::CreateCommandBuffers()
 {
-  m_commandbuffers.resize(m_swapchainFramebuffers.size());
+  mCommandBuffers.resize(mSwapchainFramebuffers.size());
 
   {
     VkCommandBufferAllocateInfo cmdAllocInfo = { };
     cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    cmdAllocInfo.commandPool = m_commandPool;
+    cmdAllocInfo.commandPool = mCommandPool;
     cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cmdAllocInfo.commandBufferCount = static_cast<uint32_t>(m_commandbuffers.size());
-    VkResult result = vkAllocateCommandBuffers(m_logicalDev, &cmdAllocInfo, m_commandbuffers.data());
+    cmdAllocInfo.commandBufferCount = static_cast<uint32_t>(mCommandBuffers.size());
+    VkResult result = vkAllocateCommandBuffers(mLogicalDevice, &cmdAllocInfo, mCommandBuffers.data());
     BASE_ASSERT(result == VK_SUCCESS && "Failed to allocated commandbuffers!");
   }
 
-  for (size_t i = 0; i < m_commandbuffers.size(); ++i) {
+  for (size_t i = 0; i < mCommandBuffers.size(); ++i) {
     VkCommandBufferBeginInfo cmdBeginInfo = { };
     cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     cmdBeginInfo.pInheritanceInfo = nullptr;
     cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
     cmdBeginInfo.pNext = nullptr;
-    vkBeginCommandBuffer(m_commandbuffers[i], &cmdBeginInfo);    
+    vkBeginCommandBuffer(mCommandBuffers[i], &cmdBeginInfo);    
     
     VkRenderPassBeginInfo renderpassBegin = { };
     renderpassBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderpassBegin.renderPass = m_defaultRenderPass;
-    renderpassBegin.framebuffer = m_swapchainFramebuffers[i];
+    renderpassBegin.renderPass = mDefaultRenderPass;
+    renderpassBegin.framebuffer = mSwapchainFramebuffers[i];
     renderpassBegin.renderArea.offset = { 0, 0 };
-    renderpassBegin.renderArea.extent = m_swapchainExtent;
+    renderpassBegin.renderArea.extent = mSwapchainExtent;
     VkClearValue clearcolor = { 0.0, 0.0f, 0.0f, 1.0f };
     renderpassBegin.clearValueCount = 1;
     renderpassBegin.pClearValues = &clearcolor;
-    vkCmdBeginRenderPass(m_commandbuffers[i], &renderpassBegin, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(m_commandbuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pbrPipeline);
+    vkCmdBeginRenderPass(mCommandBuffers[i], &renderpassBegin, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBindPipeline(mCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, mPbrPipeline);
+    vkCmdBindDescriptorSets(mCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, mPipelineLayout, 0,
+      1, &mDescriptorSetUbo, 0, nullptr);
     VkDeviceSize offsets[] = { 0 };
-    VkBuffer vertexBuffers[] = { m_vertexbuffer };
-    vkCmdBindVertexBuffers(m_commandbuffers[i], 0, 1, vertexBuffers, offsets);
+    vkCmdBindVertexBuffers(mCommandBuffers[i], 0, 1, &mesh.vertexBuffer, offsets);
+    vkCmdBindIndexBuffer(mCommandBuffers[i], mesh.indicesBuffer, 0, VK_INDEX_TYPE_UINT16);
     // hardcoded values.
-    vkCmdDraw(m_commandbuffers[i], global::vertices.size(), 1, 0, 0);
-    vkCmdEndRenderPass(m_commandbuffers[i]);
-    VkResult result = vkEndCommandBuffer(m_commandbuffers[i]);
+    //vkCmdDraw(m_commandbuffers[i], (uint32_t )global::vertices.size(), 1, 0, 0);
+    vkCmdDrawIndexed(mCommandBuffers[i], (uint32_t )global::indices.size(), 1, 0, 0, 0);
+    vkCmdEndRenderPass(mCommandBuffers[i]);
+    VkResult result = vkEndCommandBuffer(mCommandBuffers[i]);
     BASE_ASSERT(result == VK_SUCCESS && "A CommandBuffer failed recording!");
   }
 }
@@ -902,21 +931,21 @@ void Base::CreateSemaphores()
 {
   VkSemaphoreCreateInfo semaphoreCreateInfo = { };
   semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-  VkResult result = vkCreateSemaphore(m_logicalDev, &semaphoreCreateInfo, 
-    nullptr, &m_semaphores.presentation);
+  VkResult result = vkCreateSemaphore(mLogicalDevice, &semaphoreCreateInfo, 
+    nullptr, &mSemaphores.presentation);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to create presentation semaphore!");
-  result = vkCreateSemaphore(m_logicalDev, &semaphoreCreateInfo,
-    nullptr, &m_semaphores.rendering);
+  result = vkCreateSemaphore(mLogicalDevice, &semaphoreCreateInfo,
+    nullptr, &mSemaphores.rendering);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to create rendering semaphore!");
 }
 
 
-uint32_t Base::FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties)
+uint32_t Base::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
 {
   VkPhysicalDeviceMemoryProperties memProps = { };
-  vkGetPhysicalDeviceMemoryProperties(m_physicalDev, &memProps);
+  vkGetPhysicalDeviceMemoryProperties(mPhysicalDevice, &memProps);
   for (uint32_t i = 0; i < memProps.memoryTypeCount; ++i) {
-    if (type_filter & (1 << i) && 
+    if (typeFilter & (1 << i) && 
         (memProps.memoryTypes[i].propertyFlags & properties) == properties) {
       return i;
     }
@@ -926,83 +955,189 @@ uint32_t Base::FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags proper
 
 
 void Base::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
-  VkBuffer &buffer, VkDeviceMemory &buffer_mem)
+  VkBuffer &buffer, VkDeviceMemory &bufferMem)
 {
   VkBufferCreateInfo bufferInfo = {};
   bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-  bufferInfo.size = sizeof(global::vertices[0]) * global::vertices.size();
+  bufferInfo.size = size;
   bufferInfo.usage = usage;
   bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   bufferInfo.flags = 0;
-  VkResult result = vkCreateBuffer(m_logicalDev, &bufferInfo, nullptr, &buffer);
+  VkResult result = vkCreateBuffer(mLogicalDevice, &bufferInfo, nullptr, &buffer);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to create vertex buffer!");
   VkMemoryRequirements memReqs = {};
-  vkGetBufferMemoryRequirements(m_logicalDev, buffer, &memReqs);
+  vkGetBufferMemoryRequirements(mLogicalDevice, buffer, &memReqs);
   VkMemoryAllocateInfo allocInfo = {};
   allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
   allocInfo.allocationSize = memReqs.size;
   allocInfo.memoryTypeIndex = FindMemoryType(memReqs.memoryTypeBits, properties);
-  result = vkAllocateMemory(m_logicalDev, &allocInfo, nullptr, &buffer_mem);
+  result = vkAllocateMemory(mLogicalDevice, &allocInfo, nullptr, &bufferMem);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to Create Vertex buffer memory");
-  vkBindBufferMemory(m_logicalDev, buffer, buffer_mem, 0);
+  vkBindBufferMemory(mLogicalDevice, buffer, bufferMem, 0);
 }
 
 
-void Base::CopyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size)
+void Base::CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
   VkCommandBufferAllocateInfo allocInfo = { };
   allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
   allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  allocInfo.commandPool = m_commandPool;
+  allocInfo.commandPool = mCommandPool;
   allocInfo.commandBufferCount = 1;
 
-  VkCommandBuffer command_buffer;
-  vkAllocateCommandBuffers(m_logicalDev, &allocInfo, &command_buffer);
+  VkCommandBuffer commandBuffer;
+  vkAllocateCommandBuffers(mLogicalDevice, &allocInfo, &commandBuffer);
   VkCommandBufferBeginInfo beginInfo = { };
   beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
   beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-  vkBeginCommandBuffer(command_buffer, &beginInfo);
-  VkBufferCopy copy_region = { };
-  copy_region.srcOffset = 0;
-  copy_region.dstOffset = 0;
-  copy_region.size = size;
-  vkCmdCopyBuffer(command_buffer, src_buffer, dst_buffer, 1, &copy_region);
-  vkEndCommandBuffer(command_buffer);
+  vkBeginCommandBuffer(commandBuffer, &beginInfo);
+  VkBufferCopy copyRegion = { };
+  copyRegion.srcOffset = 0;
+  copyRegion.dstOffset = 0;
+  copyRegion.size = size;
+  vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+  vkEndCommandBuffer(commandBuffer);
 
   VkSubmitInfo submit =  {};
   submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
   submit.commandBufferCount = 1;
-  submit.pCommandBuffers = &command_buffer;
+  submit.pCommandBuffers = &commandBuffer;
 
-  vkQueueSubmit(m_queue.rendering, 1, &submit, VK_NULL_HANDLE);
-  vkQueueWaitIdle(m_queue.rendering);
+  vkQueueSubmit(mQueues.rendering, 1, &submit, VK_NULL_HANDLE);
+  vkQueueWaitIdle(mQueues.rendering);
 
-  vkFreeCommandBuffers(m_logicalDev, m_commandPool, 1, &command_buffer);
+  vkFreeCommandBuffers(mLogicalDevice, mCommandPool, 1, &commandBuffer);
 }
 
 
 void Base::CreateVertexBuffer()
 {
-  VkDeviceSize buffer_size = sizeof(global::vertices[0]) * global::vertices.size();
-  VkBuffer staging_buffer;
-  VkDeviceMemory staging_buffer_mem;  
-  CreateBuffer(buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_mem);
+  VkDeviceSize bufferSize = sizeof(global::vertices[0]) * global::vertices.size();
+  VkBuffer stagingBuffer;
+  VkDeviceMemory stagingBufferMem;  
+  CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMem);
 
   // map memory to vertexbuffer.  
   void *data;
-  vkMapMemory(m_logicalDev, staging_buffer_mem, 0, buffer_size, 0, &data);
-    memcpy(data, global::vertices.data(), (size_t )buffer_size);
-  vkUnmapMemory(m_logicalDev, staging_buffer_mem);
+  vkMapMemory(mLogicalDevice, stagingBufferMem, 0, bufferSize, 0, &data);
+    memcpy(data, global::vertices.data(), (size_t )bufferSize);
+  vkUnmapMemory(mLogicalDevice, stagingBufferMem);
 
-  CreateBuffer(buffer_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
-    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
-    m_vertexbuffer, m_vertexbufferMem);
+  CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
+    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+    mesh.vertexBuffer, mesh.vertexMemory);
 
-  CopyBuffer(staging_buffer, m_vertexbuffer, buffer_size);
+  CopyBuffer(stagingBuffer, mesh.vertexBuffer, bufferSize);
 
-  vkFreeMemory(m_logicalDev, staging_buffer_mem, nullptr);
-  vkDestroyBuffer(m_logicalDev, staging_buffer, nullptr);
+  vkFreeMemory(mLogicalDevice, stagingBufferMem, nullptr);
+  vkDestroyBuffer(mLogicalDevice, stagingBuffer, nullptr);
+}
+
+
+void Base::CreateIndexBuffer()
+{
+  VkDeviceSize bufferSize = sizeof(global::indices[0]) * global::indices.size();
+  VkBuffer stagingBuffer;
+  VkDeviceMemory stagingMemory;
+  
+  CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingMemory);
+
+  void *data;
+  vkMapMemory(mLogicalDevice, stagingMemory, 0, bufferSize, 0, &data);
+    memcpy(data, global::indices.data(), (size_t )bufferSize);
+  vkUnmapMemory(mLogicalDevice, stagingMemory);
+
+  CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mesh.indicesBuffer,
+    mesh.indicesMemory);
+
+  CopyBuffer(stagingBuffer, mesh.indicesBuffer, bufferSize);
+
+  vkFreeMemory(mLogicalDevice, stagingMemory, nullptr);
+  vkDestroyBuffer(mLogicalDevice, stagingBuffer, nullptr);
+}
+
+
+void Base::CreateDescriptorSetLayout()
+{
+  VkDescriptorSetLayoutBinding uboLayoutBinding = { };
+  uboLayoutBinding.binding = 0;
+  uboLayoutBinding.descriptorCount = 1;
+  uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  // can be reference in all stages...
+  uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  
+  VkDescriptorSetLayoutCreateInfo createInfo = { };
+  createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  createInfo.bindingCount = 1;
+  createInfo.pBindings = &uboLayoutBinding;
+  VkResult result = vkCreateDescriptorSetLayout(mLogicalDevice, &createInfo, nullptr,
+    &mDescriptorSetLayoutUbo);
+  BASE_ASSERT(result == VK_SUCCESS && "Failed to create a descriptor set for ubo.");
+}
+
+
+void Base::CreateUniformBuffer()
+{
+  VkDeviceSize bufferSize = sizeof(ubo);
+  CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mUbo.stagingBuffer,
+    mUbo.stagingMemory);
+
+  CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mUbo.buffer, mUbo.memory);
+}
+
+
+void Base::CreateDescriptorPool()
+{
+  VkDescriptorPoolSize poolSize = { };
+  poolSize.descriptorCount = 1;
+  poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  VkDescriptorPoolCreateInfo poolCreateInfo = { };
+  poolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+  poolCreateInfo.poolSizeCount = 1;
+  poolCreateInfo.pPoolSizes = &poolSize;
+  poolCreateInfo.maxSets = 1;
+  
+  VkResult result = vkCreateDescriptorPool(mLogicalDevice, &poolCreateInfo, nullptr, &mDescriptorPoolUbo);
+  BASE_ASSERT(result == VK_SUCCESS && "Failed to create ubo descriptor pool");
+  
+}
+
+
+void Base::CreateDescriptorSet()
+{
+  VkDescriptorSetLayout layouts[] = { mDescriptorSetLayoutUbo };
+  VkDescriptorSetAllocateInfo allocInfo = { };
+  allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+  allocInfo.descriptorSetCount = 1;
+  allocInfo.descriptorPool = mDescriptorPoolUbo;
+  allocInfo.pSetLayouts = layouts;
+  VkResult result = vkAllocateDescriptorSets(mLogicalDevice, &allocInfo, &mDescriptorSetUbo);
+  BASE_ASSERT(result == VK_SUCCESS && "Failed to alloc descriptor pool on the gpu.");
+  
+  // Create the actual descriptor set.
+  VkDescriptorBufferInfo bufferInfo = { };
+  bufferInfo.buffer = mUbo.buffer;
+  bufferInfo.offset = 0;
+  bufferInfo.range = sizeof(ubo);
+  
+  // Write to the actual Descriptor set.
+  VkWriteDescriptorSet descriptorWrite = { };
+  descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  descriptorWrite.dstSet = mDescriptorSetUbo;
+  descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  descriptorWrite.dstBinding = 0;
+  descriptorWrite.dstArrayElement = 0;
+  descriptorWrite.descriptorCount = 1;
+  descriptorWrite.pBufferInfo = &bufferInfo;
+  descriptorWrite.pImageInfo = nullptr;
+  descriptorWrite.pTexelBufferView = nullptr;
+  
+  vkUpdateDescriptorSets(mLogicalDevice, 1, &descriptorWrite, 0, nullptr);
 }
 
 
@@ -1015,64 +1150,81 @@ void Base::Initialize()
   CreateSwapChain();
   CreateImageViews();
   CreateRenderPasses();
+  CreateDescriptorSetLayout();
   CreateGraphicsPipeline();
   CreateFramebuffers();
   CreateCommandPool();
   CreateVertexBuffer();
+  CreateIndexBuffer();
+  CreateUniformBuffer();
+  CreateDescriptorPool();
+  CreateDescriptorSet();
   CreateCommandBuffers();
   CreateSemaphores();
+  SetupCamera();
+}
+
+
+void Base::SetupCamera()
+{
+  // NOTE(): Gimbal lock if vec3(0.0, x.x, 0.0f))
+  mCamera.SetPosition(glm::vec3(0.1f, -2.0f, 0.0f));
+  mCamera.SetFov(45.0f);
+  mCamera.SetNearFar(0.1f, 1000.0f);
+  mCamera.SetAspect(mSwapchainExtent.width / mSwapchainExtent.height);
+  mCamera.SetLookAt(glm::vec3(0.0f, 0.0f, 0.0f));
 }
 
 
 void Base::Draw()
 {
-  uint32_t image_index;
-  vkAcquireNextImageKHR(m_logicalDev, m_swapchain, (std::numeric_limits<uint64_t>::max)(),
-    m_semaphores.presentation, VK_NULL_HANDLE, &image_index);
+  uint32_t imageIndex;
+  vkAcquireNextImageKHR(mLogicalDevice, mSwapchain, (std::numeric_limits<uint64_t>::max)(),
+    mSemaphores.presentation, VK_NULL_HANDLE, &imageIndex);
   VkSubmitInfo submitInfo = { };
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-  VkSemaphore wait_semaphores[] = { m_semaphores.presentation };
+  VkSemaphore wait_semaphores[] = { mSemaphores.presentation };
   VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
   submitInfo.waitSemaphoreCount = 1;
   submitInfo.pWaitSemaphores = wait_semaphores;
   submitInfo.pWaitDstStageMask = wait_stages;
   submitInfo.commandBufferCount = 1;
-  submitInfo.pCommandBuffers = &m_commandbuffers[image_index];
+  submitInfo.pCommandBuffers = &mCommandBuffers[imageIndex];
   
-  VkSemaphore signal_semaphores[] = { m_semaphores.rendering };
+  VkSemaphore signal_semaphores[] = { mSemaphores.rendering };
   submitInfo.signalSemaphoreCount = 1;
   submitInfo.pSignalSemaphores = signal_semaphores;
-  VkResult result = vkQueueSubmit(m_queue.rendering, 1, &submitInfo, VK_NULL_HANDLE); 
+  VkResult result = vkQueueSubmit(mQueues.rendering, 1, &submitInfo, VK_NULL_HANDLE); 
   BASE_ASSERT(result == VK_SUCCESS && "Failed to submit commandbuffer to rendering queue.");
   
   VkPresentInfoKHR presentInfo = { };
   presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
   presentInfo.waitSemaphoreCount = 1;
   presentInfo.pWaitSemaphores = signal_semaphores;
-  VkSwapchainKHR swapchains[] = { m_swapchain };
+  VkSwapchainKHR swapchains[] = { mSwapchain };
   presentInfo.swapchainCount = 1;
   presentInfo.pSwapchains = swapchains;
-  presentInfo.pImageIndices = &image_index;
+  presentInfo.pImageIndices = &imageIndex;
   presentInfo.pResults = nullptr;
-  vkQueuePresentKHR(m_queue.presentation, &presentInfo);
+  vkQueuePresentKHR(mQueues.presentation, &presentInfo);
 }
 
 
 void Base::RecreateSwapchain()
 {
-  vkDeviceWaitIdle(m_logicalDev);
+  vkDeviceWaitIdle(mLogicalDevice);
 
-  for (size_t i = 0; i < m_swapchainImageViews.size(); ++i) {
-    vkDestroyImageView(m_logicalDev, m_swapchainImageViews[i], nullptr);
-    vkDestroyFramebuffer(m_logicalDev, m_swapchainFramebuffers[i], nullptr);
+  for (size_t i = 0; i < mSwapchainImageViews.size(); ++i) {
+    vkDestroyImageView(mLogicalDevice, mSwapchainImageViews[i], nullptr);
+    vkDestroyFramebuffer(mLogicalDevice, mSwapchainFramebuffers[i], nullptr);
   }
 
-  vkFreeCommandBuffers(m_logicalDev, m_commandPool,
-    static_cast<uint32_t>(m_commandbuffers.size()), m_commandbuffers.data());
+  vkFreeCommandBuffers(mLogicalDevice, mCommandPool,
+    static_cast<uint32_t>(mCommandBuffers.size()), mCommandBuffers.data());
 
-  vkDestroyPipeline(m_logicalDev, m_pbrPipeline, nullptr);
-  vkDestroyRenderPass(m_logicalDev, m_defaultRenderPass, nullptr);
-  vkDestroyPipelineLayout(m_logicalDev, m_pipelineLayout, nullptr);
+  vkDestroyPipeline(mLogicalDevice, mPbrPipeline, nullptr);
+  vkDestroyRenderPass(mLogicalDevice, mDefaultRenderPass, nullptr);
+  vkDestroyPipelineLayout(mLogicalDevice, mPipelineLayout, nullptr);
 
   CreateSwapChain();
   CreateImageViews();
@@ -1083,20 +1235,43 @@ void Base::RecreateSwapchain()
 }
 
 
+void Base::UpdateUniformBuffer()
+{
+  static auto startTime = std::chrono::high_resolution_clock::now();
+  auto currentTime = std::chrono::high_resolution_clock::now();
+  float time = std::chrono::duration_cast<std::chrono::milliseconds>(
+    currentTime - startTime).count() / 1000.0f;
+
+  ubo.Projection = mCamera.GetProjection();
+  ubo.Projection[1][1] *= -1;
+  ubo.View = mCamera.GetView();
+  ubo.Model = glm::rotate(glm::mat4(), time * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+  ubo.Model = glm::rotate(ubo.Model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+  void *data;
+  vkMapMemory(mLogicalDevice, mUbo.stagingMemory, 0, sizeof(ubo), 0, &data);
+    memcpy(data, &ubo, sizeof(ubo));
+  vkUnmapMemory(mLogicalDevice, mUbo.stagingMemory);
+
+  CopyBuffer(mUbo.stagingBuffer, mUbo.buffer, sizeof(ubo));
+}
+
+
 void Base::Run()
 {
-  while (!glfwWindowShouldClose(m_window)) {
+  while (!glfwWindowShouldClose(mWindow)) {
     double t = glfwGetTime();
-    m_dt = t - m_lastTime;
-    m_lastTime = t;
+    mDt = t - mLastTime;
+    mLastTime = t;
     glfwPollEvents();
 //    std::string str(std::to_string(m_dt) + " delta ms");
 //    glfwSetWindowTitle(m_window, str.c_str());
+    mCamera.Update(mDt);
+    UpdateUniformBuffer();
     Draw();
     
-    glfwSwapBuffers(m_window); 
+    glfwSwapBuffers(mWindow); 
   }
-  vkDeviceWaitIdle(m_logicalDev);
+  vkDeviceWaitIdle(mLogicalDevice);
   glfwTerminate();
 }
 

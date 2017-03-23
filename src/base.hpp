@@ -52,7 +52,7 @@ public:
   /// Get the Camera that is set up with this Base class. No need to create your 
   /// own camera, unless you plan on doing some sick shots with multiple cameras in
   /// different angles.
-  Camera *GetCamera() { return &m_camera; }
+  Camera *GetCamera() { return &mCamera; }
 
   VkQueue CreateQueue();
 
@@ -161,17 +161,24 @@ protected:
   /// Draw onto the swapchain image.
   virtual void Draw();
   void RecreateSwapchain();
+  void CreateDescriptorSetLayout();
   
   /// Simple Vertex buffer test.
   void CreateVertexBuffer();
+  void CreateIndexBuffer();
 
   /// Create the test vertex buffer.
   void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
-    VkBuffer &buffer, VkDeviceMemory &buffer_mem);
+    VkBuffer &buffer, VkDeviceMemory &bufferMemory);
+  void CreateUniformBuffer();
+  void UpdateUniformBuffer();
+  void CreateDescriptorPool();
+  void CreateDescriptorSet();
+  void SetupCamera();
 
   /// For staging buffer purposes, this will transfer the contents of the staging buffer to
   /// more high performance memory to the vertexbuffer on the gpu.
-  void CopyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
+  void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
   static void OnWindowResized(global::Window window, int width, int height);
   
@@ -179,43 +186,58 @@ protected:
   VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
   VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
   VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
-  uint32_t FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties);
+  uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
   /// Device queue.
   struct {
     VkQueue presentation;
     VkQueue rendering;
-  } m_queue;
+  } mQueues;
 
   /// Device semaphores.
   struct {
     VkSemaphore presentation;
     VkSemaphore rendering;
-  } m_semaphores;
+  } mSemaphores;
+
+  struct {
+    VkBuffer vertexBuffer;
+    VkBuffer indicesBuffer;
+    VkDeviceMemory vertexMemory;
+    VkDeviceMemory indicesMemory;
+  } mesh;
+
+  struct {
+    VkBuffer buffer;
+    VkBuffer stagingBuffer;
+    VkDeviceMemory memory;
+    VkDeviceMemory stagingMemory;
+  } mUbo;
   
-  VkPhysicalDevice              m_physicalDev;
-  VkDevice                      m_logicalDev;
-  VkSurfaceKHR                  m_surface; // TODO(): This needs to be global.
-  VkSwapchainKHR                m_swapchain;  
-  std::vector<VkImage>          m_swapchainImages;
-  std::vector<VkImageView>      m_swapchainImageViews;
-  std::vector<VkFramebuffer>    m_swapchainFramebuffers;
-  std::vector<VkCommandBuffer>  m_commandbuffers;
-  VkFormat                      m_swapchainFormat;
-  VkExtent2D                    m_swapchainExtent;
-  VkCommandPool                 m_commandPool;
-  VkPipelineLayout              m_pipelineLayout;
-  VkRenderPass                  m_defaultRenderPass;
-  VkPipeline                    m_pbrPipeline;
-  VkDebugReportCallbackEXT      m_callback;
-  VkDeviceMemory                m_vertexbufferMem;
-  VkBuffer                      m_vertexbuffer;
-  global::Window                m_window;
-  uint32_t                      window_width;
-  uint32_t                      window_height;
-  Camera                        m_camera;
-  double                        m_lastTime;
-  double                        m_dt;
+  VkPhysicalDevice              mPhysicalDevice;
+  VkDevice                      mLogicalDevice;
+  VkSurfaceKHR                  mSurface; // TODO(): This needs to be global.
+  VkSwapchainKHR                mSwapchain;  
+  std::vector<VkImage>          mSwapchainImages;
+  std::vector<VkImageView>      mSwapchainImageViews;
+  std::vector<VkFramebuffer>    mSwapchainFramebuffers;
+  std::vector<VkCommandBuffer>  mCommandBuffers;
+  VkFormat                      mSwapchainFormat;
+  VkExtent2D                    mSwapchainExtent;
+  VkCommandPool                 mCommandPool;
+  VkDescriptorSetLayout         mDescriptorSetLayoutUbo;
+  VkDescriptorPool              mDescriptorPoolUbo;
+  VkDescriptorSet               mDescriptorSetUbo;
+  VkPipelineLayout              mPipelineLayout;
+  VkRenderPass                  mDefaultRenderPass;
+  VkPipeline                    mPbrPipeline;
+  VkDebugReportCallbackEXT      mCallback;
+  global::Window                mWindow;
+  uint32_t                      windowWidth;
+  uint32_t                      windowHeight;
+  Camera                        mCamera;
+  double                        mLastTime;
+  double                        mDt;
 };
 } // pbr
 #endif // __BASE_HPP

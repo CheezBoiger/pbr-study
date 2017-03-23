@@ -5,8 +5,7 @@
 #define __CAMERA_HPP
 
 #include "platform.hpp"
-#include "matrix.hpp"
-#include "vector.hpp"
+#include "vertex.hpp"
 
 
 namespace pbr {
@@ -15,38 +14,52 @@ namespace pbr {
 class Camera {
 public:
   enum Movement;
+  Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f))
+    : mPosition(position)
+  { }
 
   void Update(double dt);
-  double GetSpeed() { return speed; }
+  double GetSpeed() { return mSpeed; }
   void Move(Movement movement);
-  void SetLookAt(Vec3 target) { lookat = target; }
+  void SetLookAt(glm::vec3 target) { mLookat = target; }
+  void SetPosition(glm::vec3 pos) { mPosition = pos; }
+  void SetFov(float fov) { mFov = fov; }
+  void SetAspect(float aspect) { mAspect = aspect; }
+  void SetNearFar(float n, float f) { mNear = n; mFar = f; }  
 
-  Mat4 GetProjection() { return projection; }
-  Mat4 GetView() { return view; }
+  glm::mat4 GetProjection() { return mProjection; }
+  glm::mat4 GetView() { return mView; }
 
 private:
   /// Z axis direction vector.
-  Vec3 front;
+  glm::vec3 mFront;
 
   /// X axis direction vector. 
-  Vec3 right;
+  glm::vec3 mRight;
   
   /// z axis direction vector.
-  Vec3 up;
+  glm::vec3 mUp;
 
   /// The View of the camera.
-  Mat4 view;
+  glm::mat4 mView;
 
   /// The projection of the camera.
-  Mat4 projection;
+  glm::mat4 mProjection;
+
+  glm::vec3 mPosition;
 
   /// speed of the camera.
-  double speed;
+  float mSpeed;
 
   /// current pitch in degrees.
-  double pitch;
+  float mPitch            = 0.0f;
+  float mYaw              = 0.0f;
+  float mFov;
+  float mAspect;
+  float mNear;
+  float mFar;
 
-  Vec3 lookat;
+  glm::vec3 mLookat;
 
 public:
   enum Movement {
