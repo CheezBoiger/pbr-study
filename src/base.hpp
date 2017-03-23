@@ -136,13 +136,35 @@ protected:
   /// programmer needs from the physical device for this application. Programmer can see the 
   /// physical device's capabilities, features, and extensions.
   bool IsDeviceSuitable(VkPhysicalDevice device);
+
+  /// Creates the Graphics Pipeline. Two are needed, since the implementation of the
+  /// sky box will have it's own pipeline.
   void CreateGraphicsPipeline();
+
+  /// Create the renderpasses needed for our framebuffers.
   void CreateRenderPasses();
+  
+  /// Create our framebuffers.
   void CreateFramebuffers();
+
+  /// Create the commandpool needed to allocate commabuffers from here.
+  /// This is required to create the commands for our renderer API.
   void CreateCommandPool();
+  
+  /// Create the commandbuffers, it will mainly be static, but ehh.
   void CreateCommandBuffers();
+
+  /// Create the semaphores needed for notifying the rendering API when 
+  /// an image is available to present, as well as for when an image is done
+  /// being drawn onto.
   void CreateSemaphores();
+  
+  /// Draw onto the swapchain image.
   virtual void Draw();
+  void RecreateSwapchain();
+
+  static void OnWindowResized(global::Window window, int width, int height);
+  
   ///
   VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
   VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);

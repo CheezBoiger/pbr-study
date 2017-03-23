@@ -194,6 +194,7 @@ void KeyCallback(Window window, int key, int scancode, int action, int mods) {
 
 
 Base::Base()
+  : m_swapchain(VK_NULL_HANDLE)
 {
   glfwInit();
 }
@@ -226,14 +227,26 @@ Base::~Base()
 }
 
 
+void Base::OnWindowResized(global::Window window, int width, int height)
+{
+  if (width == 0 || height == 0) return;
+  Base *base = static_cast<Base *>(glfwGetWindowUserPointer(window));
+  base->RecreateSwapchain();
+}
+
+
 void Base::SetupWindow(uint32_t width, uint32_t height)
 {
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-  glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
+  glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
   m_window = glfwCreateWindow(width, height, "PBR Test Vulkan", nullptr, nullptr);
   glfwMakeContextCurrent(m_window);
 
+  // Set the reference to the object that has ownership of this window.
+  glfwSetWindowUserPointer(m_window, this);
+
   glfwSetKeyCallback(m_window, global::KeyCallback);
+  glfwSetWindowSizeCallback(m_window, Base::OnWindowResized);
 #if defined(_WIN32)
   //HWND console = GetConsoleWindow();
   //ShowWindow(console, SW_HIDE);
@@ -477,7 +490,8 @@ void Base::CreateSwapChain()
       imageCount > swapChainSupport.capabilities.maxImageCount) {
     imageCount = swapChainSupport.capabilities.maxImageCount;
   }
-  
+  VkSwapchainKHR old_swapchain = m_swapchain;
+  VkSwapchainKHR new_swapchain;
   VkSwapchainCreateInfoKHR swapChainCreateInfo = { };
   swapChainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
   swapChainCreateInfo.surface = m_surface;
@@ -486,7 +500,7 @@ void Base::CreateSwapChain()
   swapChainCreateInfo.imageColorSpace = surfaceFormat.colorSpace;
   swapChainCreateInfo.imageExtent = extent;
   swapChainCreateInfo.imageArrayLayers = 1;
-  // No offscreen rendering, unless needed.
+  // No offscreen rendering, unless needed. 
   swapChainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; 
 
   QueueFamilyIndices indices = FindQueueFamilies(m_physicalDev);
@@ -504,10 +518,11 @@ void Base::CreateSwapChain()
   swapChainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
   swapChainCreateInfo.presentMode = presentMode;
   swapChainCreateInfo.clipped = VK_TRUE;
-  swapChainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+  swapChainCreateInfo.oldSwapchain = old_swapchain;
  
-  VkResult result = vkCreateSwapchainKHR(m_logicalDev, &swapChainCreateInfo, nullptr, &m_swapchain);
+  VkResult result = vkCreateSwapchainKHR(m_logicalDev, &swapChainCreateInfo, nullptr, &new_swapchain);
   BASE_ASSERT(result == VK_SUCCESS && "Swapchain failed to create!"); 
+  m_swapchain = new_swapchain;
   vkGetSwapchainImagesKHR(m_logicalDev, m_swapchain, &imageCount, nullptr);
   m_swapchainImages.resize(imageCount);
   vkGetSwapchainImagesKHR(m_logicalDev, m_swapchain, &imageCount, m_swapchainImages.data());
@@ -515,6 +530,11 @@ void Base::CreateSwapChain()
   // Keep track of swapchain format at extent.
   m_swapchainFormat = surfaceFormat.format;
   m_swapchainExtent = extent;
+
+  // If the old swapchain is a null handle, ignore having to delete it.
+  if (old_swapchain != VK_NULL_HANDLE) {
+    vkDestroySwapchainKHR(m_logicalDev, old_swapchain, nullptr);
+  }
 }
 
 
@@ -889,6 +909,31 @@ void Base::Draw()
   presentInfo.pImageIndices = &image_index;
   presentInfo.pResults = nullptr;
   vkQueuePresentKHR(m_queue.presentation, &presentInfo);
+}
+
+
+void Base::RecreateSwapchain()
+{
+  vkDeviceWaitIdle(m_logicalDev);
+
+  for (size_t i = 0; i < m_swapchainImageViews.size(); ++i) {
+    vkDestroyImageView(m_logicalDev, m_swapchainImageViews[i], nullptr);
+    vkDestroyFramebuffer(m_logicalDev, m_swapchainFramebuffers[i], nullptr);
+  }
+
+  vkFreeCommandBuffers(m_logicalDev, m_commandPool,
+    static_cast<uint32_t>(m_commandbuffers.size()), m_commandbuffers.data());
+
+  vkDestroyPipeline(m_logicalDev, m_pbrPipeline, nullptr);
+  vkDestroyRenderPass(m_logicalDev, m_defaultRenderPass, nullptr);
+  vkDestroyPipelineLayout(m_logicalDev, m_pipelineLayout, nullptr);
+
+  CreateSwapChain();
+  CreateImageViews();
+  CreateRenderPasses();
+  CreateGraphicsPipeline();
+  CreateFramebuffers();
+  CreateCommandBuffers();
 }
 
 
