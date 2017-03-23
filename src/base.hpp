@@ -54,7 +54,6 @@ public:
   /// different angles.
   Camera *GetCamera() { return &m_camera; }
 
-  VkBuffer CreateBuffer();
   VkQueue CreateQueue();
 
   void SetupWindow(uint32_t width, uint32_t height);
@@ -165,6 +164,14 @@ protected:
   
   /// Simple Vertex buffer test.
   void CreateVertexBuffer();
+
+  /// Create the test vertex buffer.
+  void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
+    VkBuffer &buffer, VkDeviceMemory &buffer_mem);
+
+  /// For staging buffer purposes, this will transfer the contents of the staging buffer to
+  /// more high performance memory to the vertexbuffer on the gpu.
+  void CopyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
 
   static void OnWindowResized(global::Window window, int width, int height);
   
