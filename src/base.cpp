@@ -3,6 +3,7 @@
 //
 #include "base.hpp"
 #include "shader.hpp"
+#include "vertex.hpp"
 #include <GLFW/glfw3.h>
 
 #include <string>
@@ -11,7 +12,7 @@
 #include <assert.h>
 #include <algorithm>
 #include <iostream>
-
+#include <array>
 
 #define BASE_DEBUG
 #if defined(BASE_DEBUG)
@@ -190,6 +191,46 @@ void KeyCallback(Window window, int key, int scancode, int action, int mods) {
     }
   }
 }
+
+
+// Get the Binding Description for the Pipeline.
+VkVertexInputBindingDescription GetBindingDescription() 
+{
+  VkVertexInputBindingDescription bindingDescription = { };
+  bindingDescription.stride = sizeof(Vertex);
+  bindingDescription.binding = 0;
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  return bindingDescription;
+}
+
+
+// Describe our Vertex Attributes.
+std::array<VkVertexInputAttributeDescription, 2> GetAttributeDescriptions()
+{
+  std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions;
+  uint32_t offset = 0;
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[0].offset = offset;
+  offset += sizeof(Vec3);
+  
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 1;
+  attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[1].offset = offset;
+  offset += sizeof(Vec3);
+
+  return attributeDescriptions;
+}
+
+
+// test vertices.
+const std::vector<Vertex> vertices = {
+  { {  0.0f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
+  { {  0.5f,  0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+  { { -0.5f,  0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f } }
+};
 } // global
 
 
@@ -215,6 +256,8 @@ Base::~Base()
   vkFreeCommandBuffers(m_logicalDev, m_commandPool, 
     static_cast<uint32_t>(m_commandbuffers.size()), m_commandbuffers.data());
 
+  vkFreeMemory(m_logicalDev, m_vertexbufferMem, nullptr);
+  vkDestroyBuffer(m_logicalDev, m_vertexbuffer, nullptr);
   vkDestroyCommandPool(m_logicalDev, m_commandPool, nullptr);
   vkDestroyPipeline(m_logicalDev, m_pbrPipeline, nullptr);
   vkDestroyRenderPass(m_logicalDev, m_defaultRenderPass, nullptr);
@@ -391,7 +434,7 @@ VkExtent2D Base::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities)
   } else {
     int32_t width, height;
     glfwGetWindowSize(m_window, &width, &height);
-    VkExtent2D actualExtent = { width, height };
+    VkExtent2D actualExtent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
     actualExtent.width = (std::max)(capabilities.minImageExtent.width, 
       (std::min)(capabilities.maxImageExtent.width, actualExtent.width));
     actualExtent.height = (std::max)(capabilities.minImageExtent.height, 
@@ -584,13 +627,16 @@ void Base::CreateGraphicsPipeline()
   fragShaderStageInfo.pName = ShaderModule::GetStdEntryPoint();
 
   VkPipelineShaderStageCreateInfo shaderInfos[] = { vertShaderStageInfo, fragShaderStageInfo };
+  auto binding_description = global::GetBindingDescription();
+  auto attribute_descriptions = global::GetAttributeDescriptions();
 
   VkPipelineVertexInputStateCreateInfo vertexInputStateinfo = { };
   vertexInputStateinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-  vertexInputStateinfo.pVertexAttributeDescriptions = nullptr;
-  vertexInputStateinfo.vertexAttributeDescriptionCount = 0;
-  vertexInputStateinfo.pVertexBindingDescriptions = nullptr;
-  vertexInputStateinfo.vertexBindingDescriptionCount = 0;
+  vertexInputStateinfo.pVertexAttributeDescriptions = attribute_descriptions.data();
+  vertexInputStateinfo.vertexAttributeDescriptionCount = 
+    static_cast<uint32_t>(attribute_descriptions.size());
+  vertexInputStateinfo.pVertexBindingDescriptions = &binding_description;
+  vertexInputStateinfo.vertexBindingDescriptionCount = 1;
 
   VkPipelineInputAssemblyStateCreateInfo inputAssemblyCreateInfo = { };
   inputAssemblyCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -840,8 +886,11 @@ void Base::CreateCommandBuffers()
     renderpassBegin.pClearValues = &clearcolor;
     vkCmdBeginRenderPass(m_commandbuffers[i], &renderpassBegin, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(m_commandbuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pbrPipeline);
+    VkDeviceSize offsets[] = { 0 };
+    VkBuffer vertexBuffers[] = { m_vertexbuffer };
+    vkCmdBindVertexBuffers(m_commandbuffers[i], 0, 1, vertexBuffers, offsets);
     // hardcoded values.
-    vkCmdDraw(m_commandbuffers[i], 3, 1, 0, 0);
+    vkCmdDraw(m_commandbuffers[i], global::vertices.size(), 1, 0, 0);
     vkCmdEndRenderPass(m_commandbuffers[i]);
     VkResult result = vkEndCommandBuffer(m_commandbuffers[i]);
     BASE_ASSERT(result == VK_SUCCESS && "A CommandBuffer failed recording!");
@@ -859,6 +908,48 @@ void Base::CreateSemaphores()
   result = vkCreateSemaphore(m_logicalDev, &semaphoreCreateInfo,
     nullptr, &m_semaphores.rendering);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to create rendering semaphore!");
+}
+
+
+uint32_t Base::FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties)
+{
+  VkPhysicalDeviceMemoryProperties memProps = { };
+  vkGetPhysicalDeviceMemoryProperties(m_physicalDev, &memProps);
+  for (uint32_t i = 0; i < memProps.memoryTypeCount; ++i) {
+    if (type_filter & (1 << i) && 
+        (memProps.memoryTypes[i].propertyFlags & properties) == properties) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+
+void Base::CreateVertexBuffer()
+{
+  VkBufferCreateInfo bufferInfo = { };
+  bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  bufferInfo.size = sizeof(global::vertices[0]) * global::vertices.size();
+  bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+  bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  bufferInfo.flags = 0;
+  VkResult result = vkCreateBuffer(m_logicalDev, &bufferInfo, nullptr, &m_vertexbuffer);
+  BASE_ASSERT(result == VK_SUCCESS && "Failed to create vertex buffer!");
+  VkMemoryRequirements memReqs = { };
+  vkGetBufferMemoryRequirements(m_logicalDev, m_vertexbuffer, &memReqs);
+  VkMemoryAllocateInfo allocInfo = { };
+  allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  allocInfo.allocationSize = memReqs.size;
+  allocInfo.memoryTypeIndex = FindMemoryType(memReqs.memoryTypeBits, 
+    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+  result = vkAllocateMemory(m_logicalDev, &allocInfo, nullptr, &m_vertexbufferMem);
+  BASE_ASSERT(result == VK_SUCCESS && "Failed to Create Vertex buffer memory");
+  vkBindBufferMemory(m_logicalDev, m_vertexbuffer, m_vertexbufferMem, 0);
+  // map memory to vertexbuffer.
+  void *data;
+  vkMapMemory(m_logicalDev, m_vertexbufferMem, 0, bufferInfo.size, 0, &data);
+    memcpy(data, global::vertices.data(), (size_t )bufferInfo.size);
+  vkUnmapMemory(m_logicalDev, m_vertexbufferMem);
   
 }
 
@@ -875,6 +966,7 @@ void Base::Initialize()
   CreateGraphicsPipeline();
   CreateFramebuffers();
   CreateCommandPool();
+  CreateVertexBuffer();
   CreateCommandBuffers();
   CreateSemaphores();
 }

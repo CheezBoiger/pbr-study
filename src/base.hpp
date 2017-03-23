@@ -162,6 +162,9 @@ protected:
   /// Draw onto the swapchain image.
   virtual void Draw();
   void RecreateSwapchain();
+  
+  /// Simple Vertex buffer test.
+  void CreateVertexBuffer();
 
   static void OnWindowResized(global::Window window, int width, int height);
   
@@ -169,7 +172,7 @@ protected:
   VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
   VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
   VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
-  uint32_t FindMemoryType(uint32_t type);
+  uint32_t FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties);
 
   /// Device queue.
   struct {
@@ -198,7 +201,8 @@ protected:
   VkRenderPass                  m_defaultRenderPass;
   VkPipeline                    m_pbrPipeline;
   VkDebugReportCallbackEXT      m_callback;
-  VkDeviceMemory                m_commandMem;
+  VkDeviceMemory                m_vertexbufferMem;
+  VkBuffer                      m_vertexbuffer;
   global::Window                m_window;
   uint32_t                      window_width;
   uint32_t                      window_height;

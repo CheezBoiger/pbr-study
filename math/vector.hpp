@@ -137,6 +137,26 @@ public:
           _Value y = 1.0f)
     : x(x), y(y) { }
 
+  Vector2 operator+(Vector2 &vec) {
+    return Vector2(
+      x + vec.x,
+      y + vec.y
+    );
+  }
+
+  Vector2 operator-(Vector2 &vec) {
+    return Vector2(
+      x - vec.x,
+      y - vec.y
+    );
+  }
+
+  Vector2 operator*(Vector2 &vec) {
+    return Vector2(
+      x * vec.x,
+      y * vec.y
+    );
+  }
 
   union {
     struct { _Value x, y; };
