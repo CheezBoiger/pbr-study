@@ -8,6 +8,46 @@
 namespace pbr {
 
 
+void Camera::Move(Camera::Movement movement, float dt)
+{
+  float dist = mSpeed * dt;
+  switch (movement) {
+    case Camera::FORWARD:
+    {
+      mPosition += mFront * dist; 
+    }
+    break;
+    case Camera::BACK:
+    {
+      mPosition -=  mFront * dist;
+    } 
+    break; 
+    case Camera::LEFT:
+    {
+      mPosition -= mRight * dist;
+    } 
+    break;
+    case Camera::RIGHT:
+    {
+      mPosition += mRight * dist;
+    } 
+    break;
+    case Camera::UP:
+    {
+      mPosition += mUp * dist;
+    } 
+    break;
+    case Camera::DOWN:
+    {
+      mPosition -= mUp * dist;
+    } 
+    break;
+    default: // do nothing
+    break;
+  }
+}
+
+
 void Camera::Update(double dt)
 {
   mFront = glm::normalize(mLookat - mPosition);

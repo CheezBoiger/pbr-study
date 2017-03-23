@@ -167,9 +167,9 @@ VkShaderModule ShaderModule::GenerateShaderModule(VkDevice device, ShaderStage s
   shader->setStrings(&source, 1); 
   shader->setEntryPoint(std_entryPoint);
   bool success = shader->parse(&resources, 430, false, (EShMessages )(EShMsgVulkanRules | EShMsgSpvRules));
-  assert(success && "Failed to parse shader code!");
   if (!success) {
     std::printf("%s", shader->getInfoLog());
+    assert(success && "Failed to parse shader code!");
   }
   
   program->addShader(shader);

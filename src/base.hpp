@@ -170,18 +170,19 @@ protected:
   /// Create the test vertex buffer.
   void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
     VkBuffer &buffer, VkDeviceMemory &bufferMemory);
-  void CreateUniformBuffer();
-  void UpdateUniformBuffer();
-  void CreateDescriptorPool();
-  void CreateDescriptorSet();
+  void CreateUniformBuffers();
+  void UpdateUniformBuffers();
+  void CreateDescriptorPools();
+  void CreateDescriptorSets();
   void SetupCamera();
+  void MoveCamera();
 
   /// For staging buffer purposes, this will transfer the contents of the staging buffer to
   /// more high performance memory to the vertexbuffer on the gpu.
   void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
   static void OnWindowResized(global::Window window, int width, int height);
-  
+
   ///
   VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
   VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
@@ -200,6 +201,7 @@ protected:
     VkSemaphore rendering;
   } mSemaphores;
 
+  /// Simple test mesh.
   struct {
     VkBuffer vertexBuffer;
     VkBuffer indicesBuffer;
@@ -207,11 +209,15 @@ protected:
     VkDeviceMemory indicesMemory;
   } mesh;
 
+  /// Ubo info.
   struct {
-    VkBuffer buffer;
-    VkBuffer stagingBuffer;
-    VkDeviceMemory memory;
-    VkDeviceMemory stagingMemory;
+    VkBuffer              buffer;
+    VkBuffer              stagingBuffer;
+    VkDeviceMemory        memory;
+    VkDeviceMemory        stagingMemory;
+    VkDescriptorSetLayout descriptorSetLayout;
+    VkDescriptorPool      descriptorPool;
+    VkDescriptorSet       descriptorSet;
   } mUbo;
   
   VkPhysicalDevice              mPhysicalDevice;
@@ -225,9 +231,6 @@ protected:
   VkFormat                      mSwapchainFormat;
   VkExtent2D                    mSwapchainExtent;
   VkCommandPool                 mCommandPool;
-  VkDescriptorSetLayout         mDescriptorSetLayoutUbo;
-  VkDescriptorPool              mDescriptorPoolUbo;
-  VkDescriptorSet               mDescriptorSetUbo;
   VkPipelineLayout              mPipelineLayout;
   VkRenderPass                  mDefaultRenderPass;
   VkPipeline                    mPbrPipeline;

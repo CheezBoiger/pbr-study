@@ -166,11 +166,12 @@ VkInstance GetInstance()
 }
 
 
+bool keyCodes[1024];
 void KeyCallback(Window window, int key, int scancode, int action, int mods) {
   if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
     glfwSetWindowShouldClose(window, GLFW_TRUE);
   }
-  if (action == GLFW_PRESS) {
+  if (action == GLFW_PRESS || action == GLFW_REPEAT) {
     switch (key) {
       case GLFW_KEY_C: 
       {
@@ -190,6 +191,9 @@ void KeyCallback(Window window, int key, int scancode, int action, int mods) {
       break;
       default: break;
     }
+    keyCodes[key] = true;
+  } else {
+    keyCodes[key] = false;
   }
 }
 
@@ -274,8 +278,8 @@ Base::~Base()
   vkFreeMemory(mLogicalDevice, mUbo.memory, nullptr);
   vkDestroyBuffer(mLogicalDevice, mUbo.buffer, nullptr);
   vkDestroyBuffer(mLogicalDevice, mUbo.stagingBuffer, nullptr);
-  vkDestroyDescriptorSetLayout(mLogicalDevice, mDescriptorSetLayoutUbo, nullptr);
-  vkDestroyDescriptorPool(mLogicalDevice, mDescriptorPoolUbo, nullptr);
+  vkDestroyDescriptorSetLayout(mLogicalDevice,mUbo.descriptorSetLayout, nullptr);
+  vkDestroyDescriptorPool(mLogicalDevice, mUbo.descriptorPool, nullptr);
   vkFreeMemory(mLogicalDevice, mesh.vertexMemory, nullptr);
   vkFreeMemory(mLogicalDevice, mesh.indicesMemory, nullptr);
   vkDestroyBuffer(mLogicalDevice, mesh.indicesBuffer, nullptr);
@@ -756,7 +760,7 @@ void Base::CreateGraphicsPipeline()
   VkPipelineLayoutCreateInfo pipelineLayoutCreatInfo = { };
   pipelineLayoutCreatInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   pipelineLayoutCreatInfo.setLayoutCount = 1;
-  pipelineLayoutCreatInfo.pSetLayouts = &mDescriptorSetLayoutUbo;
+  pipelineLayoutCreatInfo.pSetLayouts = &mUbo.descriptorSetLayout;
   pipelineLayoutCreatInfo.pushConstantRangeCount = 0;
   pipelineLayoutCreatInfo.pPushConstantRanges = nullptr;
 
@@ -913,7 +917,7 @@ void Base::CreateCommandBuffers()
     vkCmdBeginRenderPass(mCommandBuffers[i], &renderpassBegin, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(mCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, mPbrPipeline);
     vkCmdBindDescriptorSets(mCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, mPipelineLayout, 0,
-      1, &mDescriptorSetUbo, 0, nullptr);
+      1, &mUbo.descriptorSet, 0, nullptr);
     VkDeviceSize offsets[] = { 0 };
     vkCmdBindVertexBuffers(mCommandBuffers[i], 0, 1, &mesh.vertexBuffer, offsets);
     vkCmdBindIndexBuffer(mCommandBuffers[i], mesh.indicesBuffer, 0, VK_INDEX_TYPE_UINT16);
@@ -1074,12 +1078,12 @@ void Base::CreateDescriptorSetLayout()
   createInfo.bindingCount = 1;
   createInfo.pBindings = &uboLayoutBinding;
   VkResult result = vkCreateDescriptorSetLayout(mLogicalDevice, &createInfo, nullptr,
-    &mDescriptorSetLayoutUbo);
+    &mUbo.descriptorSetLayout);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to create a descriptor set for ubo.");
 }
 
 
-void Base::CreateUniformBuffer()
+void Base::CreateUniformBuffers()
 {
   VkDeviceSize bufferSize = sizeof(ubo);
   CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
@@ -1091,7 +1095,7 @@ void Base::CreateUniformBuffer()
 }
 
 
-void Base::CreateDescriptorPool()
+void Base::CreateDescriptorPools()
 {
   VkDescriptorPoolSize poolSize = { };
   poolSize.descriptorCount = 1;
@@ -1102,21 +1106,21 @@ void Base::CreateDescriptorPool()
   poolCreateInfo.pPoolSizes = &poolSize;
   poolCreateInfo.maxSets = 1;
   
-  VkResult result = vkCreateDescriptorPool(mLogicalDevice, &poolCreateInfo, nullptr, &mDescriptorPoolUbo);
+  VkResult result = vkCreateDescriptorPool(mLogicalDevice, &poolCreateInfo, nullptr, &mUbo.descriptorPool);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to create ubo descriptor pool");
   
 }
 
 
-void Base::CreateDescriptorSet()
+void Base::CreateDescriptorSets()
 {
-  VkDescriptorSetLayout layouts[] = { mDescriptorSetLayoutUbo };
+  VkDescriptorSetLayout layouts[] = { mUbo.descriptorSetLayout };
   VkDescriptorSetAllocateInfo allocInfo = { };
   allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
   allocInfo.descriptorSetCount = 1;
-  allocInfo.descriptorPool = mDescriptorPoolUbo;
+  allocInfo.descriptorPool = mUbo.descriptorPool;
   allocInfo.pSetLayouts = layouts;
-  VkResult result = vkAllocateDescriptorSets(mLogicalDevice, &allocInfo, &mDescriptorSetUbo);
+  VkResult result = vkAllocateDescriptorSets(mLogicalDevice, &allocInfo, &mUbo.descriptorSet);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to alloc descriptor pool on the gpu.");
   
   // Create the actual descriptor set.
@@ -1128,7 +1132,7 @@ void Base::CreateDescriptorSet()
   // Write to the actual Descriptor set.
   VkWriteDescriptorSet descriptorWrite = { };
   descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-  descriptorWrite.dstSet = mDescriptorSetUbo;
+  descriptorWrite.dstSet = mUbo.descriptorSet;
   descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
   descriptorWrite.dstBinding = 0;
   descriptorWrite.dstArrayElement = 0;
@@ -1156,9 +1160,9 @@ void Base::Initialize()
   CreateCommandPool();
   CreateVertexBuffer();
   CreateIndexBuffer();
-  CreateUniformBuffer();
-  CreateDescriptorPool();
-  CreateDescriptorSet();
+  CreateUniformBuffers();
+  CreateDescriptorPools();
+  CreateDescriptorSets();
   CreateCommandBuffers();
   CreateSemaphores();
   SetupCamera();
@@ -1168,9 +1172,10 @@ void Base::Initialize()
 void Base::SetupCamera()
 {
   // NOTE(): Gimbal lock if vec3(0.0, x.x, 0.0f))
-  mCamera.SetPosition(glm::vec3(0.1f, -2.0f, 0.0f));
+  mCamera.SetPosition(glm::vec3(2.0f, 2.0f, 2.0f));
   mCamera.SetFov(45.0f);
   mCamera.SetNearFar(0.1f, 1000.0f);
+  mCamera.SetSpeed(5.0f);
   mCamera.SetAspect(mSwapchainExtent.width / mSwapchainExtent.height);
   mCamera.SetLookAt(glm::vec3(0.0f, 0.0f, 0.0f));
 }
@@ -1196,7 +1201,7 @@ void Base::Draw()
   submitInfo.pSignalSemaphores = signal_semaphores;
   VkResult result = vkQueueSubmit(mQueues.rendering, 1, &submitInfo, VK_NULL_HANDLE); 
   BASE_ASSERT(result == VK_SUCCESS && "Failed to submit commandbuffer to rendering queue.");
-  
+
   VkPresentInfoKHR presentInfo = { };
   presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
   presentInfo.waitSemaphoreCount = 1;
@@ -1235,7 +1240,7 @@ void Base::RecreateSwapchain()
 }
 
 
-void Base::UpdateUniformBuffer()
+void Base::UpdateUniformBuffers()
 {
   static auto startTime = std::chrono::high_resolution_clock::now();
   auto currentTime = std::chrono::high_resolution_clock::now();
@@ -1245,14 +1250,36 @@ void Base::UpdateUniformBuffer()
   ubo.Projection = mCamera.GetProjection();
   ubo.Projection[1][1] *= -1;
   ubo.View = mCamera.GetView();
-  ubo.Model = glm::rotate(glm::mat4(), time * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-  ubo.Model = glm::rotate(ubo.Model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+  ubo.Model = glm::rotate(glm::mat4(), time * glm::radians(45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
   void *data;
   vkMapMemory(mLogicalDevice, mUbo.stagingMemory, 0, sizeof(ubo), 0, &data);
     memcpy(data, &ubo, sizeof(ubo));
   vkUnmapMemory(mLogicalDevice, mUbo.stagingMemory);
 
   CopyBuffer(mUbo.stagingBuffer, mUbo.buffer, sizeof(ubo));
+}
+
+
+void Base::MoveCamera()
+{
+  if (global::keyCodes[GLFW_KEY_W]) {
+    mCamera.Move(Camera::FORWARD, mDt);
+  }
+  if (global::keyCodes[GLFW_KEY_A]) {
+    mCamera.Move(Camera::LEFT, mDt);
+  }
+  if (global::keyCodes[GLFW_KEY_S]) {
+    mCamera.Move(Camera::BACK, mDt);
+  }
+  if (global::keyCodes[GLFW_KEY_D]) {
+    mCamera.Move(Camera::RIGHT, mDt);
+  }
+  if (global::keyCodes[GLFW_KEY_E]) {
+    mCamera.Move(Camera::UP, mDt);
+  }
+  if (global::keyCodes[GLFW_KEY_Q]) {
+    mCamera.Move(Camera::DOWN, mDt);
+  }
 }
 
 
@@ -1263,10 +1290,11 @@ void Base::Run()
     mDt = t - mLastTime;
     mLastTime = t;
     glfwPollEvents();
+    MoveCamera();
 //    std::string str(std::to_string(m_dt) + " delta ms");
 //    glfwSetWindowTitle(m_window, str.c_str());
     mCamera.Update(mDt);
-    UpdateUniformBuffer();
+    UpdateUniformBuffers();
     Draw();
     
     glfwSwapBuffers(mWindow); 
