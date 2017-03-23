@@ -389,7 +389,9 @@ VkExtent2D Base::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities)
   if (capabilities.currentExtent.width != (std::numeric_limits<uint32_t>::max)()) {
     return capabilities.currentExtent;
   } else {
-    VkExtent2D actualExtent = { window_width, window_height };
+    int32_t width, height;
+    glfwGetWindowSize(m_window, &width, &height);
+    VkExtent2D actualExtent = { width, height };
     actualExtent.width = (std::max)(capabilities.minImageExtent.width, 
       (std::min)(capabilities.maxImageExtent.width, actualExtent.width));
     actualExtent.height = (std::max)(capabilities.minImageExtent.height, 
