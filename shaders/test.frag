@@ -140,5 +140,9 @@ void main() {
   vec3 N = normalize(fragNormal);
   vec3 color = BRDF(V, N, L, material.metallic, material.roughness);
   color += vec3(material.r, material.g, material.b) * 0.02;
+  
+   // calculate for gamma correction and hdr rendering.
+  color = color / (color + vec3(1.0));
+  color = pow(color, vec3(1.0/2.2));
   outColor = vec4(color, 1.0f);//texture(image, fragTexCoord);
 }

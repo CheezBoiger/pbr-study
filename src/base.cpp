@@ -1526,7 +1526,7 @@ void Base::Initialize()
   material.metallic = 0.5f;
   material.r = 1.0f;
   material.g = 0.0f;
-  material.b = 0.1f;
+  material.b = 0.0f;
 }
 
 
@@ -1628,8 +1628,8 @@ void Base::UpdateUniformBuffers()
   CopyBuffer(mMaterial.stagingBuffer, mMaterial.buffer, sizeof(material));
 
   // update lighting.
-  pointLight.Position = glm::vec4(5.0f, 3.0, 5.0f, 0.0);
-  pointLight.Color = glm::vec3(1.0f, 1.0f, 1.0f);
+  pointLight.Position = glm::vec4(std::sin(time) * 5.0f, 3.0, 5.0f, 0.0);
+  pointLight.Color = glm::vec3(0.0f, 1.0f, 0.0f);
   pointLight.Radius = 10.0f;
   vkMapMemory(mLogicalDevice, mPointLight.stagingMemory, 0, sizeof(pointLight), 0, &data);
     memcpy(data, &pointLight, sizeof(pointLight));
@@ -1664,17 +1664,17 @@ void Base::MoveCamera()
 void Base::AdjustMaterialValues()
 {
   if (global::keyCodes[GLFW_KEY_M]) {
-    material.metallic += 0.1f * mDt;
+    material.metallic += 0.1f * (float )mDt;
   }
   if (global::keyCodes[GLFW_KEY_N]) {
-    material.metallic -= 0.1f * mDt;
+    material.metallic -= 0.1f * (float)mDt;
   }
 
   if (global::keyCodes[GLFW_KEY_R]) {
-    material.roughness += 0.1 * mDt;
+    material.roughness += 0.1f * (float)mDt;
   } 
   if (global::keyCodes[GLFW_KEY_T]) {
-    material.roughness -= 0.1 * mDt;
+    material.roughness -= 0.1f * (float)mDt;
   }
 
   if (material.metallic < 0.1f) {

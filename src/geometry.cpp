@@ -41,8 +41,8 @@ GeometryData Geometry::CreateSphere(float radius, uint32_t sliceCount, uint32_t 
 
   meshData.vertices.push_back(topVertex);
 
-  float phiStep = PI / stackCount;
-  float thetaStep = 2.0f*PI / sliceCount;
+  float phiStep = float(PI) / stackCount;
+  float thetaStep =  float(2.0f * PI) / sliceCount;
 
   // Compute vertices for each stack ring (do not count the poles as rings).
   for (uint32_t i = 1; i <= stackCount - 1; ++i)
@@ -64,8 +64,8 @@ GeometryData Geometry::CreateSphere(float radius, uint32_t sliceCount, uint32_t 
       glm::vec3 p = glm::vec3(v.Position);
       v.Normal = glm::normalize(p);
 
-      v.uv.x = theta / PI_2;
-      v.uv.y = phi / PI;
+      v.uv.x = theta / float(PI_2);
+      v.uv.y = phi / float(PI);
 
       meshData.vertices.push_back(v);
     }
