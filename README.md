@@ -1,7 +1,7 @@
 # What the Hell is this?
 Simple Physically Based Renderer Study with Vulkan
 
-![ScreenShot] (images/sphere_test.png)
+![alt tag] (https://raw.githubusercontent.com/Cheezboiger/pbr-study/master/images/sphere_test.png)
   
 # Why?
 Cause I felt like it, wanna fite m8?
