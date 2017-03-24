@@ -35,6 +35,8 @@ set(PBR_SRC
   platform.hpp
   shader.hpp
   shader.cpp
+  geometry.hpp
+  geometry.cpp
   stb_image.h
   tiny_obj_loader.h
 )

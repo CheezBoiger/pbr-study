@@ -160,16 +160,28 @@ protected:
   
   /// Draw onto the swapchain image.
   virtual void Draw();
+
+  /// Recreate the swaphcain when resizing the window.
   void RecreateSwapchain();
+
+  /// Create the Descriptor layouts, which are used to tell the graphics pipeline
+  /// the bindings and locations of each attribute.
   void CreateDescriptorSetLayouts();
+
+  /// Adjusts the material's values, the roughness and metallic.
+  void AdjustMaterialValues();
   
   /// Simple Vertex buffer test.
-  void CreateVertexBuffer();
-  void CreateIndexBuffer();
+  void CreateVertexBuffers();
+  
+  /// Simple Index buffer test.
+  void CreateIndexBuffers();
 
   /// Create the test vertex buffer.
   void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
     VkBuffer &buffer, VkDeviceMemory &bufferMemory);
+
+  /// Create our uniform buffers.
   void CreateUniformBuffers();
   void UpdateUniformBuffers();
   void CreateDescriptorPools();
@@ -220,7 +232,6 @@ protected:
     VkDeviceMemory indicesMemory;
   } mesh;
 
-  
 
   struct {
     VkImage image;
@@ -235,10 +246,21 @@ protected:
     VkBuffer              stagingBuffer;
     VkDeviceMemory        memory;
     VkDeviceMemory        stagingMemory;
-    VkDescriptorSetLayout descriptorSetLayout;
-    VkDescriptorPool      descriptorPool;
-    VkDescriptorSet       descriptorSet;
   } mUbo;
+
+  struct {
+    VkBuffer buffer;
+    VkDeviceMemory memory;
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingMemory;
+  } mPointLight;
+
+  struct {
+    VkBuffer buffer;
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingMemory;
+    VkDeviceMemory memory;
+  } mMaterial;
   
   VkPhysicalDevice              mPhysicalDevice;
   VkDevice                      mLogicalDevice;
@@ -252,6 +274,9 @@ protected:
   VkExtent2D                    mSwapchainExtent;
   VkCommandPool                 mCommandPool;
   VkPipelineLayout              mPipelineLayout;
+  VkDescriptorSetLayout         mDescriptorSetLayout;
+  VkDescriptorPool              mDescriptorPool;
+  VkDescriptorSet               mDescriptorSet;
   VkRenderPass                  mDefaultRenderPass;
   VkPipeline                    mPbrPipeline;
   VkDebugReportCallbackEXT      mCallback;

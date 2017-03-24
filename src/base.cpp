@@ -4,6 +4,7 @@
 #include "base.hpp"
 #include "shader.hpp"
 #include "vertex.hpp"
+#include "geometry.hpp"
 #include <GLFW/glfw3.h>
 #define STB_IMAGE_IMPLEMENTTION
 #include "stb_image.h"
@@ -249,6 +250,9 @@ const std::vector<Vertex> vertices = {
 const std::vector<uint16_t> indices = {
   0, 1, 2, 2, 3, 0 
 }; 
+
+
+const GeometryData sphere = Geometry::CreateSphere(1.0f, 60, 60);
 } // global
 
 
@@ -257,7 +261,24 @@ struct UBO {
   glm::mat4 Model;
   glm::mat4 View;
   glm::mat4 Projection;
+  glm::vec3 CamPosition;
 } ubo;
+
+
+struct MaterialUBO {
+  float roughness;
+  float metallic;
+  float r;
+  float g;
+  float b;
+} material;
+
+
+struct PointLightUBO {
+  glm::vec4 Position;
+  glm::vec3 Color;
+  float Radius;
+} pointLight;
 
 
 Base::Base()
@@ -282,6 +303,14 @@ Base::~Base()
   vkFreeCommandBuffers(mLogicalDevice, mCommandPool, 
     static_cast<uint32_t>(mCommandBuffers.size()), mCommandBuffers.data());
 
+  vkFreeMemory(mLogicalDevice, mMaterial.memory, nullptr);
+  vkFreeMemory(mLogicalDevice, mMaterial.stagingMemory, nullptr);
+  vkFreeMemory(mLogicalDevice, mPointLight.stagingMemory, nullptr);
+  vkFreeMemory(mLogicalDevice, mPointLight.memory, nullptr);
+  vkDestroyBuffer(mLogicalDevice, mMaterial.stagingBuffer, nullptr);
+  vkDestroyBuffer(mLogicalDevice, mMaterial.buffer, nullptr);
+  vkDestroyBuffer(mLogicalDevice, mPointLight.stagingBuffer, nullptr);
+  vkDestroyBuffer(mLogicalDevice, mPointLight.buffer, nullptr);
   vkDestroyImage(mLogicalDevice, texture.image, nullptr);
   vkDestroyImageView(mLogicalDevice, texture.imageView, nullptr);
   vkDestroySampler(mLogicalDevice, texture.sampler, nullptr);
@@ -290,8 +319,8 @@ Base::~Base()
   vkFreeMemory(mLogicalDevice, mUbo.memory, nullptr);
   vkDestroyBuffer(mLogicalDevice, mUbo.buffer, nullptr);
   vkDestroyBuffer(mLogicalDevice, mUbo.stagingBuffer, nullptr);
-  vkDestroyDescriptorSetLayout(mLogicalDevice,mUbo.descriptorSetLayout, nullptr);
-  vkDestroyDescriptorPool(mLogicalDevice, mUbo.descriptorPool, nullptr);
+  vkDestroyDescriptorSetLayout(mLogicalDevice, mDescriptorSetLayout, nullptr);
+  vkDestroyDescriptorPool(mLogicalDevice, mDescriptorPool, nullptr);
   vkFreeMemory(mLogicalDevice, mesh.vertexMemory, nullptr);
   vkFreeMemory(mLogicalDevice, mesh.indicesMemory, nullptr);
   vkDestroyBuffer(mLogicalDevice, mesh.indicesBuffer, nullptr);
@@ -756,7 +785,7 @@ void Base::CreateGraphicsPipeline()
   VkPipelineLayoutCreateInfo pipelineLayoutCreatInfo = { };
   pipelineLayoutCreatInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   pipelineLayoutCreatInfo.setLayoutCount = 1;
-  pipelineLayoutCreatInfo.pSetLayouts = &mUbo.descriptorSetLayout;
+  pipelineLayoutCreatInfo.pSetLayouts = &mDescriptorSetLayout;
   pipelineLayoutCreatInfo.pushConstantRangeCount = 0;
   pipelineLayoutCreatInfo.pPushConstantRanges = nullptr;
 
@@ -913,13 +942,13 @@ void Base::CreateCommandBuffers()
     vkCmdBeginRenderPass(mCommandBuffers[i], &renderpassBegin, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(mCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, mPbrPipeline);
     vkCmdBindDescriptorSets(mCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, mPipelineLayout, 0,
-      1, &mUbo.descriptorSet, 0, nullptr);
+      1, &mDescriptorSet, 0, nullptr);
     VkDeviceSize offsets[] = { 0 };
     vkCmdBindVertexBuffers(mCommandBuffers[i], 0, 1, &mesh.vertexBuffer, offsets);
     vkCmdBindIndexBuffer(mCommandBuffers[i], mesh.indicesBuffer, 0, VK_INDEX_TYPE_UINT16);
     // hardcoded values.
     //vkCmdDraw(m_commandbuffers[i], (uint32_t )global::vertices.size(), 1, 0, 0);
-    vkCmdDrawIndexed(mCommandBuffers[i], (uint32_t )global::indices.size(), 1, 0, 0, 0);
+    vkCmdDrawIndexed(mCommandBuffers[i], (uint32_t )global::sphere.indices.size(), 1, 0, 0, 0);
     vkCmdEndRenderPass(mCommandBuffers[i]);
     VkResult result = vkEndCommandBuffer(mCommandBuffers[i]);
     BASE_ASSERT(result == VK_SUCCESS && "A CommandBuffer failed recording!");
@@ -989,9 +1018,9 @@ void Base::CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 }
 
 
-void Base::CreateVertexBuffer()
+void Base::CreateVertexBuffers()
 {
-  VkDeviceSize bufferSize = sizeof(global::vertices[0]) * global::vertices.size();
+  VkDeviceSize bufferSize = sizeof(global::sphere.vertices[0]) * global::sphere.vertices.size();
   VkBuffer stagingBuffer;
   VkDeviceMemory stagingBufferMem;  
   CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
@@ -1000,7 +1029,7 @@ void Base::CreateVertexBuffer()
   // map memory to vertexbuffer.  
   void *data;
   vkMapMemory(mLogicalDevice, stagingBufferMem, 0, bufferSize, 0, &data);
-    memcpy(data, global::vertices.data(), (size_t )bufferSize);
+    memcpy(data, global::sphere.vertices.data(), (size_t )bufferSize);
   vkUnmapMemory(mLogicalDevice, stagingBufferMem);
 
   CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
@@ -1014,9 +1043,9 @@ void Base::CreateVertexBuffer()
 }
 
 
-void Base::CreateIndexBuffer()
+void Base::CreateIndexBuffers()
 {
-  VkDeviceSize bufferSize = sizeof(global::indices[0]) * global::indices.size();
+  VkDeviceSize bufferSize = sizeof(global::sphere.indices[0]) * global::sphere.indices.size();
   VkBuffer stagingBuffer;
   VkDeviceMemory stagingMemory;
   
@@ -1025,7 +1054,7 @@ void Base::CreateIndexBuffer()
 
   void *data;
   vkMapMemory(mLogicalDevice, stagingMemory, 0, bufferSize, 0, &data);
-    memcpy(data, global::indices.data(), (size_t )bufferSize);
+    memcpy(data, global::sphere.indices.data(), (size_t )bufferSize);
   vkUnmapMemory(mLogicalDevice, stagingMemory);
 
   CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
@@ -1047,7 +1076,7 @@ void Base::CreateDescriptorSetLayouts()
   uboLayoutBinding.descriptorCount = 1;
   uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
   // can be reference in all stages...
-  uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  uboLayoutBinding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
 
   setLayoutBindings.push_back(uboLayoutBinding);
 
@@ -1058,13 +1087,29 @@ void Base::CreateDescriptorSetLayouts()
   cubemapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
   setLayoutBindings.push_back(cubemapLayoutBinding);
+
+  VkDescriptorSetLayoutBinding materialLayoutBinding = { };
+  materialLayoutBinding.binding = 2;
+  materialLayoutBinding.descriptorCount = 1;
+  materialLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  materialLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+  setLayoutBindings.push_back(materialLayoutBinding);
+  
+  VkDescriptorSetLayoutBinding lightLayoutBinding = { };
+  lightLayoutBinding.binding = 3;
+  lightLayoutBinding.descriptorCount = 1;
+  lightLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  lightLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+  setLayoutBindings.push_back(lightLayoutBinding);
   
   VkDescriptorSetLayoutCreateInfo createInfo = { };
   createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
   createInfo.bindingCount = (uint32_t )setLayoutBindings.size();
   createInfo.pBindings = setLayoutBindings.data();
   VkResult result = vkCreateDescriptorSetLayout(mLogicalDevice, &createInfo, nullptr,
-    &mUbo.descriptorSetLayout);
+    &mDescriptorSetLayout);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to create a descriptor set for ubo.");
 }
 
@@ -1075,9 +1120,24 @@ void Base::CreateUniformBuffers()
   CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mUbo.stagingBuffer,
     mUbo.stagingMemory);
-
   CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mUbo.buffer, mUbo.memory);
+
+  bufferSize = sizeof(PointLightUBO);
+  CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mPointLight.stagingBuffer,
+    mPointLight.stagingMemory);
+  CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mPointLight.buffer,
+    mPointLight.memory);
+
+  bufferSize = sizeof(MaterialUBO);
+  CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mMaterial.stagingBuffer,
+    mMaterial.stagingMemory);
+  CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mMaterial.buffer,
+    mMaterial.memory);
 }
 
 
@@ -1093,8 +1153,18 @@ void Base::CreateDescriptorPools()
   cubemapPool.descriptorCount = 1;
   cubemapPool.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
+  VkDescriptorPoolSize materialPool = { };
+  materialPool.descriptorCount = 1;
+  materialPool.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  
+  VkDescriptorPoolSize lightPool = { };
+  lightPool.descriptorCount = 1;
+  lightPool.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
   poolSizes.push_back(poolSize);
   poolSizes.push_back(cubemapPool);
+  poolSizes.push_back(materialPool);
+  poolSizes.push_back(lightPool);
 
   VkDescriptorPoolCreateInfo poolCreateInfo = { };
   poolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1102,7 +1172,7 @@ void Base::CreateDescriptorPools()
   poolCreateInfo.pPoolSizes = poolSizes.data();
   poolCreateInfo.maxSets = 1;
   
-  VkResult result = vkCreateDescriptorPool(mLogicalDevice, &poolCreateInfo, nullptr, &mUbo.descriptorPool);
+  VkResult result = vkCreateDescriptorPool(mLogicalDevice, &poolCreateInfo, nullptr, &mDescriptorPool);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to create ubo descriptor pool");
   
 }
@@ -1110,13 +1180,13 @@ void Base::CreateDescriptorPools()
 
 void Base::CreateDescriptorSets()
 {
-  VkDescriptorSetLayout layouts[] = { mUbo.descriptorSetLayout };
+  VkDescriptorSetLayout layouts[] = { mDescriptorSetLayout };
   VkDescriptorSetAllocateInfo allocInfo = { };
   allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
   allocInfo.descriptorSetCount = 1;
-  allocInfo.descriptorPool = mUbo.descriptorPool;
+  allocInfo.descriptorPool = mDescriptorPool;
   allocInfo.pSetLayouts = layouts;
-  VkResult result = vkAllocateDescriptorSets(mLogicalDevice, &allocInfo, &mUbo.descriptorSet);
+  VkResult result = vkAllocateDescriptorSets(mLogicalDevice, &allocInfo, &mDescriptorSet);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to alloc descriptor pool on the gpu.");
   
   // Create the actual descriptor set.
@@ -1130,11 +1200,21 @@ void Base::CreateDescriptorSets()
   imageInfo.imageView = texture.imageView;
   imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
+  VkDescriptorBufferInfo materialBufferInfo = { };
+  materialBufferInfo.buffer = mMaterial.buffer;
+  materialBufferInfo.offset = 0;
+  materialBufferInfo.range = sizeof(material);
+
+  VkDescriptorBufferInfo lightBufferInfo = { };
+  lightBufferInfo.buffer = mPointLight.buffer;
+  lightBufferInfo.offset = 0;
+  lightBufferInfo.range = sizeof(pointLight);
+
   std::vector<VkWriteDescriptorSet> writeDescriptorSets;  
   // Write to the actual Descriptor set.
   VkWriteDescriptorSet descriptorWrite = { };
   descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-  descriptorWrite.dstSet = mUbo.descriptorSet;
+  descriptorWrite.dstSet = mDescriptorSet;
   descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
   descriptorWrite.dstBinding = 0;
   descriptorWrite.dstArrayElement = 0;
@@ -1145,7 +1225,7 @@ void Base::CreateDescriptorSets()
   
   VkWriteDescriptorSet cubemapWrite = { };
   cubemapWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-  cubemapWrite.dstSet = mUbo.descriptorSet;
+  cubemapWrite.dstSet = mDescriptorSet;
   cubemapWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
   cubemapWrite.dstBinding = 1;
   cubemapWrite.dstArrayElement = 0;
@@ -1154,8 +1234,28 @@ void Base::CreateDescriptorSets()
   cubemapWrite.pImageInfo = &imageInfo;
   cubemapWrite.pTexelBufferView = nullptr;
 
+  VkWriteDescriptorSet materialWrite = { };
+  materialWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  materialWrite.dstSet = mDescriptorSet;
+  materialWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  materialWrite.dstBinding = 2;
+  materialWrite.dstArrayElement = 0;
+  materialWrite.descriptorCount = 1;
+  materialWrite.pBufferInfo = &materialBufferInfo;
+
+  VkWriteDescriptorSet lightWrite = { };
+  lightWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  lightWrite.dstBinding = 3;
+  lightWrite.descriptorCount = 1;
+  lightWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  lightWrite.dstSet = mDescriptorSet;
+  lightWrite.dstArrayElement = 0;
+  lightWrite.pBufferInfo = &lightBufferInfo;
+
   writeDescriptorSets.push_back(descriptorWrite);
   writeDescriptorSets.push_back(cubemapWrite);
+  writeDescriptorSets.push_back(materialWrite);
+  writeDescriptorSets.push_back(lightWrite);
   
   vkUpdateDescriptorSets(mLogicalDevice, (uint32_t )writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
 }
@@ -1413,14 +1513,20 @@ void Base::Initialize()
   CreateTextureImages();
   CreateTextureImageView();
   CreateTextureSampler();
-  CreateVertexBuffer();
-  CreateIndexBuffer();
+  CreateVertexBuffers();
+  CreateIndexBuffers();
   CreateUniformBuffers();
   CreateDescriptorPools();
   CreateDescriptorSets();
   CreateCommandBuffers();
   CreateSemaphores();
   SetupCamera();
+
+  material.roughness = 0.3f;
+  material.metallic = 0.5f;
+  material.r = 1.0f;
+  material.g = 0.0f;
+  material.b = 0.1f;
 }
 
 
@@ -1505,13 +1611,30 @@ void Base::UpdateUniformBuffers()
   ubo.Projection = mCamera.GetProjection();
   ubo.Projection[1][1] *= -1;
   ubo.View = mCamera.GetView();
-  ubo.Model = glm::rotate(glm::mat4(), time * glm::radians(45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+  ubo.Model = glm::rotate(glm::mat4(), time * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+  ubo.CamPosition = mCamera.GetPosition();
   void *data;
   vkMapMemory(mLogicalDevice, mUbo.stagingMemory, 0, sizeof(ubo), 0, &data);
     memcpy(data, &ubo, sizeof(ubo));
   vkUnmapMemory(mLogicalDevice, mUbo.stagingMemory);
 
   CopyBuffer(mUbo.stagingBuffer, mUbo.buffer, sizeof(ubo));
+
+  // update pbr settings.
+
+  vkMapMemory(mLogicalDevice, mMaterial.stagingMemory, 0, sizeof(material), 0, &data);
+    memcpy(data, &material, sizeof(material));
+  vkUnmapMemory(mLogicalDevice, mMaterial.stagingMemory);
+  CopyBuffer(mMaterial.stagingBuffer, mMaterial.buffer, sizeof(material));
+
+  // update lighting.
+  pointLight.Position = glm::vec4(5.0f, 3.0, 5.0f, 0.0);
+  pointLight.Color = glm::vec3(1.0f, 1.0f, 1.0f);
+  pointLight.Radius = 10.0f;
+  vkMapMemory(mLogicalDevice, mPointLight.stagingMemory, 0, sizeof(pointLight), 0, &data);
+    memcpy(data, &pointLight, sizeof(pointLight));
+  vkUnmapMemory(mLogicalDevice, mPointLight.stagingMemory);
+  CopyBuffer(mPointLight.stagingBuffer, mPointLight.buffer, sizeof(pointLight));
 }
 
 
@@ -1538,6 +1661,38 @@ void Base::MoveCamera()
 }
 
 
+void Base::AdjustMaterialValues()
+{
+  if (global::keyCodes[GLFW_KEY_M]) {
+    material.metallic += 0.1f * mDt;
+  }
+  if (global::keyCodes[GLFW_KEY_N]) {
+    material.metallic -= 0.1f * mDt;
+  }
+
+  if (global::keyCodes[GLFW_KEY_R]) {
+    material.roughness += 0.1 * mDt;
+  } 
+  if (global::keyCodes[GLFW_KEY_T]) {
+    material.roughness -= 0.1 * mDt;
+  }
+
+  if (material.metallic < 0.1f) {
+    material.metallic = 0.1f;
+  }
+  if (material.metallic > 1.0f) {
+    material.metallic = 1.0f;
+  }
+
+  if (material.roughness > 1.0f) {
+    material.roughness = 1.0f;
+  }
+  if (material.roughness < 0.1f) {  
+    material.roughness = 0.1f;
+  }
+}
+
+
 void Base::Run()
 {
   while (!glfwWindowShouldClose(mWindow)) {
@@ -1546,6 +1701,7 @@ void Base::Run()
     mLastTime = t;
     glfwPollEvents();
     MoveCamera();
+    AdjustMaterialValues();
 //    std::string str(std::to_string(m_dt) + " delta ms");
 //    glfwSetWindowTitle(m_window, str.c_str());
     mCamera.Update(mDt);

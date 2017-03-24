@@ -16,8 +16,8 @@ namespace pbr {
 /// Vertex Description.
 struct Vertex {
   glm::vec3 Position;
-  glm::vec3 Color;
-  glm::vec2 TexCoords;
+  glm::vec3 Normal;
+  glm::vec2 uv;
 };
 } // pbr
 #endif // __VERTEX_HPP

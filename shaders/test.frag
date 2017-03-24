@@ -13,11 +13,39 @@
 #version 430 
 #extension GL_ARB_separate_shader_objects : enable
 
-layout (location = 0) in vec3 fragColor;
-layout (location = 1) in vec2 fragTexCoord;
+layout (location = 0) in vec3 fragPos;
+layout (location = 1) in vec3 fragNormal;
+layout (location = 2) in vec2 fragTexCoord;
+
 layout (location = 0) out vec4 outColor;
 
+layout (binding = 0) uniform UniformBufferObject {
+  mat4 model;
+  mat4 view;
+  mat4 projection;
+  vec3 camPosition;
+} ubo;
+
 layout (binding = 1) uniform sampler2D image;
+
+layout (binding = 2) uniform Material {
+  float roughness;
+  float metallic;
+  float r;
+  float g;
+  float b;
+} material;
+
+struct PointLight {
+  vec4 position;
+  vec3 color;
+  float radius;
+};
+
+// Offset values are rather strange here...
+layout (binding = 3) uniform Lighting {
+  PointLight light;
+} lighting;
 
 const float PI = 3.14159265359;
 
@@ -85,20 +113,32 @@ vec3 BRDF(vec3 V, vec3 N, vec3 L, float metallic, float roughness)
   // final color output.
   vec3 color = vec3(0.0);
   vec3 F0 = vec3(0.04);
-  //F0 = mix(F0, , metallic);
+  F0 = mix(F0, vec3(material.r, material.g, material.b), metallic);
+  float distance = length(L);
+  float attenuation = lighting.light.radius / ((distance * distance) + 1.0);
+  vec3 radiance = vec3(1.0) * attenuation;
   
   if (dotNL > 0.0) {
     float D = DGGX(dotNH, roughness);
     float G = GSchlickmithGGX(dotNL, dotNV, roughness);
     vec3 F = FSchlick(dotNV, F0);
     // Cook Torrance microfacet specular BRDF
-    vec3 spec = D * F * G / (4 * dotNL * dotNV); 
-    color += spec * dotNL * lightColor;
+    vec3 brdf = D * F * G / (4 * dotNL * dotNV);
+    vec3 kS = F;
+    vec3 kD = vec3(1.0) - kS;
+    kD *= 1.0 - metallic;
+    //color += brdf * dotNL * lighting.light.color;
+    color += ((kD * vec3(material.r, material.g, material.b)) / PI + brdf) * radiance * dotNL;
   }
   
   return color;
 }
 
 void main() {
-  outColor = texture(image, fragTexCoord);
+  vec3 V = normalize(ubo.camPosition - fragPos);
+  vec3 L = normalize(lighting.light.position.xyz - fragPos);
+  vec3 N = normalize(fragNormal);
+  vec3 color = BRDF(V, N, L, material.metallic, material.roughness);
+  color += vec3(material.r, material.g, material.b) * 0.02;
+  outColor = vec4(color, 1.0f);//texture(image, fragTexCoord);
 }

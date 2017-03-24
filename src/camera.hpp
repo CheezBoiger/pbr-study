@@ -30,6 +30,7 @@ public:
 
   glm::mat4 GetProjection() { return mProjection; }
   glm::mat4 GetView() { return mView; }
+  glm::vec3 GetPosition() { return mPosition; }
 
 private:
   /// Z axis direction vector.
