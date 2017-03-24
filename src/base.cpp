@@ -1537,7 +1537,7 @@ void Base::SetupCamera()
   mCamera.SetFov(45.0f);
   mCamera.SetNearFar(0.1f, 1000.0f);
   mCamera.SetSpeed(5.0f);
-  mCamera.SetAspect((float )(mSwapchainExtent.width / mSwapchainExtent.height));
+  mCamera.SetAspect(((float )mSwapchainExtent.width / (float )mSwapchainExtent.height));
   mCamera.SetLookAt(glm::vec3(0.0f, 0.0f, 0.0f));
 }
 
@@ -1629,7 +1629,7 @@ void Base::UpdateUniformBuffers()
 
   // update lighting.
   pointLight.Position = glm::vec4(std::sin(time) * 5.0f, 3.0, 5.0f, 0.0);
-  pointLight.Color = glm::vec3(0.0f, 1.0f, 0.0f);
+  pointLight.Color = glm::vec3(1.0f, 1.0f, 1.0f);
   pointLight.Radius = 10.0f;
   vkMapMemory(mLogicalDevice, mPointLight.stagingMemory, 0, sizeof(pointLight), 0, &data);
     memcpy(data, &pointLight, sizeof(pointLight));

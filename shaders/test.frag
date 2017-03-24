@@ -116,7 +116,7 @@ vec3 BRDF(vec3 V, vec3 N, vec3 L, float metallic, float roughness)
   F0 = mix(F0, vec3(material.r, material.g, material.b), metallic);
   float distance = length(L);
   float attenuation = lighting.light.radius / ((distance * distance) + 1.0);
-  vec3 radiance = vec3(1.0) * attenuation;
+  vec3 radiance = lighting.light.color * attenuation;
   
   if (dotNL > 0.0) {
     float D = DGGX(dotNH, roughness);
