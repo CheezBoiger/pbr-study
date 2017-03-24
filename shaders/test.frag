@@ -1,9 +1,23 @@
+//
+// Copyright (c) Mario Garcia, MIT License.
+//
+// This Shader handles PBR (Physically Based Rendering) shading and
+// uses the same PBR shading model as Disney's animated films and the Unreal Engine.
+
+// PBR is a popular trend in Computer Graphics as it models real world
+// lighting, and shading. Look at the followng Lecture notes by Epic Games,
+// creators of the Unreal Engine, for more information about the theory:
+//
+//  http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
+//
 #version 430 
 #extension GL_ARB_separate_shader_objects : enable
 
 layout (location = 0) in vec3 fragColor;
+layout (location = 1) in vec2 fragTexCoord;
 layout (location = 0) out vec4 outColor;
 
+layout (binding = 1) uniform sampler2D image;
 
 const float PI = 3.14159265359;
 
@@ -86,5 +100,5 @@ vec3 BRDF(vec3 V, vec3 N, vec3 L, float metallic, float roughness)
 }
 
 void main() {
-  outColor = vec4(fragColor, 1.0);
+  outColor = texture(image, fragTexCoord);
 }

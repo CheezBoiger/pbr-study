@@ -8,9 +8,9 @@
 namespace pbr {
 
 
-void Camera::Move(Camera::Movement movement, float dt)
+void Camera::Move(Camera::Movement movement, double dt)
 {
-  float dist = mSpeed * dt;
+  float dist = mSpeed * float(dt);
   switch (movement) {
     case Camera::FORWARD:
     {

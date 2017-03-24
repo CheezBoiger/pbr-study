@@ -161,7 +161,7 @@ protected:
   /// Draw onto the swapchain image.
   virtual void Draw();
   void RecreateSwapchain();
-  void CreateDescriptorSetLayout();
+  void CreateDescriptorSetLayouts();
   
   /// Simple Vertex buffer test.
   void CreateVertexBuffer();
@@ -174,6 +174,7 @@ protected:
   void UpdateUniformBuffers();
   void CreateDescriptorPools();
   void CreateDescriptorSets();
+  void CreateTextureImages();
   void SetupCamera();
   void MoveCamera();
 
@@ -182,12 +183,22 @@ protected:
   void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
   static void OnWindowResized(global::Window window, int width, int height);
+  void CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, 
+    VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage &image, VkDeviceMemory &imageMemory);
 
   ///
   VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
   VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
   VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
   uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+  VkCommandBuffer BeginSingleTimeCommands();
+  void EndSingleTimeCommands(VkCommandBuffer commandbuffer);
+  void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, 
+    VkImageLayout newLayout);
+  void CopyImage(VkImage srcImage, VkImage dstImage, uint32_t width, uint32_t height);
+  void CreateImageView(VkImage image, VkFormat format, VkImageView &imageView);
+  void CreateTextureImageView();
+  void CreateTextureSampler();
 
   /// Device queue.
   struct {
@@ -208,6 +219,15 @@ protected:
     VkDeviceMemory vertexMemory;
     VkDeviceMemory indicesMemory;
   } mesh;
+
+  
+
+  struct {
+    VkImage image;
+    VkImageView imageView;
+    VkSampler sampler;
+    VkDeviceMemory memory;
+  } texture;
 
   /// Ubo info.
   struct {

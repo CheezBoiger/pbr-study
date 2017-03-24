@@ -20,7 +20,7 @@ public:
 
   void Update(double dt);
   double GetSpeed() { return mSpeed; }
-  void Move(Movement movement, float dt);
+  void Move(Movement movement, double dt);
   void SetLookAt(glm::vec3 target) { mLookat = target; }
   void SetPosition(glm::vec3 pos) { mPosition = pos; }
   void SetFov(float fov) { mFov = fov; }
