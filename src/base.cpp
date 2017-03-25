@@ -19,7 +19,14 @@
 #include <array>
 #include <chrono>
 
+// For debugging. Set to 1 to start up validation layers.
+// You can disable this value to prevent validation layers from
+// setting up, which will remove error checking when rendering.
+// Although this may sound atrocious, it is an added advantage,
+// for which performance may increase as a result of no error checking. 
 #define BASE_DEBUG 1
+
+// If you prefer to render the sphere, set this to 1 
 #define SPHERE 0
 
 #if BASE_DEBUG
@@ -1684,11 +1691,15 @@ void Base::RecreateSwapchain()
   vkDestroyPipeline(mLogicalDevice, mPbrPipeline, nullptr);
   vkDestroyRenderPass(mLogicalDevice, mDefaultRenderPass, nullptr);
   vkDestroyPipelineLayout(mLogicalDevice, mPipelineLayout, nullptr);
+  vkFreeMemory(mLogicalDevice, mDepth.memory, nullptr);
+  vkDestroyImage(mLogicalDevice, mDepth.image, nullptr);
+  vkDestroyImageView(mLogicalDevice, mDepth.imageView, nullptr);
 
   CreateSwapChain();
   CreateImageViews();
   CreateRenderPasses();
   CreateGraphicsPipeline();
+  CreateDefaultDepthResources();
   CreateFramebuffers();
   CreateCommandBuffers();
 }
