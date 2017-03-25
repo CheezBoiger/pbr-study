@@ -93,27 +93,33 @@ vec3 FSchlick(float cosTheta, vec3 F0)
 // Function. It describes the way light behaves when reflecting off a surface. Light isn't 
 // always reflecting off perfectly smooth surfaces, so a model was created to represent 
 // a sort of rough surface (as all objects have a sort of non-smooth surface), with little 
-// mirrors we can call "microfacets", or micro surfaces if you prefer.   
-// >param V view direction.
-// >param L light direction.
-// >param N surface normal.
+// mirrors we can call "microfacets", or micro surfaces if you prefer.
+// >param light information about the light.   
+// >param V view direction (not normalized).
+// >param L light direction (not normalized).
+// >param N surface normal (not normalized).
 // >param metallic the metallic value of the surface
 // >param roughness the roughness value of the surface 
 vec3 BRDF(vec3 V, vec3 N, vec3 L, float metallic, float roughness)
 {
+  vec3 nV = normalize(V);
+  vec3 nL = normalize(L);
+  vec3 nN = normalize(N);
   // Calculate Half vector between View and Light direction.
-  vec3 H = normalize(V + L);
+  vec3 H = normalize(nV + nL);
 
-  float dotNL = clamp(dot(N, L), 0.0, 1.0);
-  float dotNV = clamp(dot(N, V), 0.0, 1.0);
-  float dotLH = clamp(dot(L, H), 0.0, 1.0);
-  float dotNH = clamp(dot(N, H), 0.0, 1.0);
+  float dotNL = clamp(dot(nN, nL), 0.0, 1.0);
+  float dotNV = clamp(dot(nN, nV), 0.0, 1.0);
+  float dotLH = clamp(dot(nL, H), 0.0, 1.0);
+  float dotNH = clamp(dot(nN, H), 0.0, 1.0);
   
   vec3 lightColor = vec3(1.0);
   // final color output.
   vec3 color = vec3(0.0);
   vec3 F0 = vec3(0.04);
   F0 = mix(F0, vec3(material.r, material.g, material.b), metallic);
+  
+  // point light attenuation. handles only one light for now.
   float distance = length(L);
   float attenuation = lighting.light.radius / ((distance * distance) + 1.0);
   vec3 radiance = lighting.light.color * attenuation;
@@ -135,9 +141,9 @@ vec3 BRDF(vec3 V, vec3 N, vec3 L, float metallic, float roughness)
 }
 
 void main() {
-  vec3 V = normalize(ubo.camPosition - fragPos);
-  vec3 L = normalize(lighting.light.position.xyz - fragPos);
-  vec3 N = normalize(fragNormal);
+  vec3 V = ubo.camPosition - fragPos;
+  vec3 L = lighting.light.position.xyz - fragPos;
+  vec3 N = fragNormal;
   vec3 color = BRDF(V, N, L, material.metallic, material.roughness);
   color += vec3(material.r, material.g, material.b) * 0.02;
   

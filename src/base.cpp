@@ -1716,7 +1716,7 @@ void Base::UpdateUniformBuffers()
   // flip projection, vulkan handles everything differently than OpenGL
   ubo.Projection[1][1] *= -1;
   ubo.View = mCamera.GetView();
-  ubo.Model = glm::rotate(glm::mat4(), time * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+  ubo.Model = glm::rotate(glm::mat4(), glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
   ubo.CamPosition = mCamera.GetPosition();
   void *data;
   vkMapMemory(mLogicalDevice, mUbo.stagingMemory, 0, sizeof(ubo), 0, &data);
@@ -1733,9 +1733,9 @@ void Base::UpdateUniformBuffers()
   CopyBuffer(mMaterial.stagingBuffer, mMaterial.buffer, sizeof(material));
 
   // update lighting.
-  pointLight.Position = glm::vec4(5.0f, 3.0f, 5.0f, 0.0);
+  pointLight.Position = glm::vec4(std::sin(time) * 10.0f, 3.0f, 3.0f, 0.0);
   pointLight.Color = glm::vec3(1.0f, 1.0f, 1.0f);
-  pointLight.Radius = 10.0f;
+  pointLight.Radius = 100.0f;
   vkMapMemory(mLogicalDevice, mPointLight.stagingMemory, 0, sizeof(pointLight), 0, &data);
     memcpy(data, &pointLight, sizeof(pointLight));
   vkUnmapMemory(mLogicalDevice, mPointLight.stagingMemory);
