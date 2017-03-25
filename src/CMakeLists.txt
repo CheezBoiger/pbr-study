@@ -48,6 +48,7 @@ add_executable(${PBR_NAME}
 target_compile_definitions(${PBR_NAME} PRIVATE
   PBR_CURRENT_VERSION=0x000001
   PBR_MINIMUM_VERSION=0x000000
+  PBR_STUDY_DIR="${CMAKE_SOURCE_DIR}"
 )
 
 target_link_libraries(${PBR_NAME}

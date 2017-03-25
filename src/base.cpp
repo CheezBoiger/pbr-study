@@ -25,6 +25,7 @@
 // Although this may sound atrocious, it is an added advantage,
 // for which performance may increase as a result of no error checking. 
 #define BASE_DEBUG 1
+#define APPEND_AB(a, b) a##b
 
 // If you prefer to render the sphere, set this to 1 
 #define SPHERE 0
@@ -264,7 +265,7 @@ const std::vector<uint32_t> indices = {
 #if SPHERE
 const GeometryData model = Geometry::CreateSphere(1.0f, 60, 60);
 #else
-const GeometryData model = Model::LoadModel("Happy buddha", "../../pbr-study/buddha.obj");
+const GeometryData model = Model::LoadModel("Happy buddha", PBR_STUDY_DIR"/buddha.obj");
 #endif
 } // global
 
@@ -678,9 +679,9 @@ void Base::CreateImageViews()
 void Base::CreateGraphicsPipeline()
 {
   VkShaderModule vert = ShaderModule::GenerateShaderModule(mLogicalDevice, 
-    ShaderModule::ssVertShader, "../../pbr-study/shaders/test.vert");
+    ShaderModule::ssVertShader, PBR_STUDY_DIR"/shaders/test.vert");
   VkShaderModule frag = ShaderModule::GenerateShaderModule(mLogicalDevice,
-    ShaderModule::ssFragShader, "../../pbr-study/shaders/test.frag");
+    ShaderModule::ssFragShader, PBR_STUDY_DIR"/shaders/test.frag");
 
   VkPipelineShaderStageCreateInfo vertShaderStageInfo = { };
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1214,7 +1215,7 @@ void Base::CreateDescriptorPools()
   poolCreateInfo.poolSizeCount = (uint32_t )poolSizes.size();
   poolCreateInfo.pPoolSizes = poolSizes.data();
   poolCreateInfo.maxSets = 1;
-  
+
   VkResult result = vkCreateDescriptorPool(mLogicalDevice, &poolCreateInfo, nullptr, &mDescriptorPool);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to create ubo descriptor pool");
   
