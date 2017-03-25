@@ -208,9 +208,15 @@ protected:
   void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, 
     VkImageLayout newLayout);
   void CopyImage(VkImage srcImage, VkImage dstImage, uint32_t width, uint32_t height);
-  void CreateImageView(VkImage image, VkFormat format, VkImageView &imageView);
+  void CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspetFlags, VkImageView &imageView);
   void CreateTextureImageView();
   void CreateTextureSampler();
+  void CreateDefaultDepthResources();
+  VkFormat FindSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling,
+    VkFormatFeatureFlags flags);
+  bool HasStencilComponent(VkFormat format);
+
+  VkFormat FindDepthFormat();
 
   /// Device queue.
   struct {
@@ -270,6 +276,12 @@ protected:
   std::vector<VkImageView>      mSwapchainImageViews;
   std::vector<VkFramebuffer>    mSwapchainFramebuffers;
   std::vector<VkCommandBuffer>  mCommandBuffers;
+  
+  struct {
+    VkImage image;
+    VkDeviceMemory memory;
+    VkImageView imageView; 
+  } mDepth;
   VkFormat                      mSwapchainFormat;
   VkExtent2D                    mSwapchainExtent;
   VkCommandPool                 mCommandPool;
