@@ -1343,7 +1343,7 @@ void Base::CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImage
 void Base::CreateTextureImages()
 {
   int32_t width, height, channels;
-  stbi_uc *bytecode = stbi_load("../../pbr-study/statue.jpg", &width, &height, &channels, STBI_rgb_alpha);
+  stbi_uc *bytecode = stbi_load(PBR_STUDY_DIR"/statue.jpg", &width, &height, &channels, STBI_rgb_alpha);
   VkDeviceSize imageSize = width * height * 4;
   
   BASE_ASSERT(bytecode && "Failed to load image");
