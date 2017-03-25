@@ -23,8 +23,16 @@
 // You can disable this value to prevent validation layers from
 // setting up, which will remove error checking when rendering.
 // Although this may sound atrocious, it is an added advantage,
-// for which performance may increase as a result of no error checking. 
-#define BASE_DEBUG 1
+// for which performance may increase as a result of no error checking.
+#ifdef _WIN32
+ #if _DEBUG 
+ #define BASE_DEBUG 1
+ #else
+  #define BASE_DEBUG 0
+ #endif
+#else
+ #define BASE_DEBUG 1
+#endif
 #define APPEND_AB(a, b) a##b
 
 // If you prefer to render the sphere, set this to 1 
