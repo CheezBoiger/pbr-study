@@ -36,7 +36,7 @@
 #define APPEND_AB(a, b) a##b
 
 // If you prefer to render the sphere, set this to 1 
-#define SPHERE 0
+#define SPHERE 1
 
 #if BASE_DEBUG
  #define BASE_ASSERT(expr) assert(expr)
@@ -689,8 +689,12 @@ void Base::CreateCubemaps()
 {
   int32_t rwidth, rheight, rchannels;
   int32_t iwidth, iheight, ichannels;
-  stbi_uc *radianceMap = stbi_load(PBR_STUDY_DIR"/subway_radiance.ktx", &rwidth, &rheight, &rchannels, STBI_rgb_alpha);
-  stbi_uc *irradianceMap = stbi_load(PBR_STUDY_DIR"/subay_irradiance.ktx", &iwidth, &iheight, &ichannels, STBI_rgb_alpha);
+  stbi_uc *radianceMap = stbi_load(PBR_STUDY_DIR"/maps/subway_radiance.hdr", &rwidth, 
+    &rheight, &rchannels, STBI_rgb_alpha);
+  BASE_ASSERT(radianceMap && "Radiance map did not successfully load!");
+  stbi_uc *irradianceMap = stbi_load(PBR_STUDY_DIR"/maps/subay_irradiance.hdr", &iwidth, 
+    &iheight, &ichannels, STBI_rgb_alpha);
+  BASE_ASSERT(radianceMap && "Irradiance map did not successfully load!");
 
   stbi_image_free(radianceMap);
   stbi_image_free(irradianceMap);
@@ -1652,6 +1656,7 @@ void Base::Initialize()
   CreateTextureImages();
   CreateTextureImageView();
   CreateTextureSampler();
+  CreateCubemaps();
   CreateVertexBuffers();
   CreateIndexBuffers();
   CreateUniformBuffers();
