@@ -687,6 +687,13 @@ void Base::CreateImageViews()
 
 void Base::CreateCubemaps()
 {
+  int32_t rwidth, rheight, rchannels;
+  int32_t iwidth, iheight, ichannels;
+  stbi_uc *radianceMap = stbi_load(PBR_STUDY_DIR"/subway_radiance.ktx", &rwidth, &rheight, &rchannels, STBI_rgb_alpha);
+  stbi_uc *irradianceMap = stbi_load(PBR_STUDY_DIR"/subay_irradiance.ktx", &iwidth, &iheight, &ichannels, STBI_rgb_alpha);
+
+  stbi_image_free(radianceMap);
+  stbi_image_free(irradianceMap);
 }
 
 

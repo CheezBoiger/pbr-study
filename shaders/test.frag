@@ -26,7 +26,7 @@ layout (binding = 0) uniform UniformBufferObject {
   vec3 camPosition;
 } ubo;
 
-layout (binding = 1) uniform sampler2D image;
+layout (binding = 1) uniform samplerCube radianceMap;
 
 layout (binding = 2) uniform Material {
   float roughness;
