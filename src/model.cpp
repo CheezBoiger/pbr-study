@@ -35,14 +35,14 @@ GeometryData Model::LoadModel(const char *name, const char *filepath)
     for (const auto &index : shape.mesh.indices) {
       Vertex vertex;
       if (index.vertex_index > -1) {
-        vertex.Position = {
+        vertex.position = {
           attrib.vertices[3 * index.vertex_index + 0],
           attrib.vertices[3 * index.vertex_index + 1],
           attrib.vertices[3 * index.vertex_index + 2]
         };
       }
       if (index.normal_index > -1) {
-        vertex.Normal = {
+        vertex.normal = {
           attrib.normals[3 * index.normal_index + 0],
           attrib.normals[3 * index.normal_index + 1],
           attrib.normals[3 * index.normal_index + 2] 

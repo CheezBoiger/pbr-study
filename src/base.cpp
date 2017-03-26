@@ -351,7 +351,7 @@ Base::~Base()
   vkDestroyBuffer(mLogicalDevice, mesh.indicesBuffer, nullptr);
   vkDestroyBuffer(mLogicalDevice, mesh.vertexBuffer, nullptr);
   vkDestroyCommandPool(mLogicalDevice, mCommandPool, nullptr);
-  vkDestroyPipeline(mLogicalDevice, mPbrPipeline, nullptr);
+  vkDestroyPipeline(mLogicalDevice, mPipelines.pbr, nullptr);
   vkDestroyRenderPass(mLogicalDevice, mDefaultRenderPass, nullptr);
   vkDestroyPipelineLayout(mLogicalDevice, mPipelineLayout, nullptr);
   vkDestroySwapchainKHR(mLogicalDevice, mSwapchain, nullptr);
@@ -690,6 +690,10 @@ void Base::CreateGraphicsPipeline()
     ShaderModule::ssVertShader, PBR_STUDY_DIR"/shaders/test.vert");
   VkShaderModule frag = ShaderModule::GenerateShaderModule(mLogicalDevice,
     ShaderModule::ssFragShader, PBR_STUDY_DIR"/shaders/test.frag");
+  VkShaderModule skyVert = ShaderModule::GenerateShaderModule(mLogicalDevice,
+    ShaderModule::ssVertShader, PBR_STUDY_DIR"/shaders/skybox.vert");
+  VkShaderModule skyFrag = ShaderModule::GenerateShaderModule(mLogicalDevice,
+    ShaderModule::ssFragShader, PBR_STUDY_DIR"/shaders/skybox.frag");
 
   VkPipelineShaderStageCreateInfo vertShaderStageInfo = { };
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -846,11 +850,16 @@ void Base::CreateGraphicsPipeline()
   gPipelineCreateInfo.basePipelineIndex = -1;
 
   result = vkCreateGraphicsPipelines(mLogicalDevice, VK_NULL_HANDLE, 1, 
-    &gPipelineCreateInfo, nullptr, &mPbrPipeline);
+    &gPipelineCreateInfo, nullptr, &mPipelines.pbr);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to create PBR graphics pipeline!");
 
   vkDestroyShaderModule(mLogicalDevice, vert, nullptr);
   vkDestroyShaderModule(mLogicalDevice, frag, nullptr);
+
+  
+
+  vkDestroyShaderModule(mLogicalDevice, skyVert, nullptr);
+  vkDestroyShaderModule(mLogicalDevice, skyFrag, nullptr);  
 }
 
 
@@ -992,7 +1001,7 @@ void Base::CreateCommandBuffers()
     renderpassBegin.clearValueCount = (uint32_t )clearValues.size();
     renderpassBegin.pClearValues = clearValues.data();
     vkCmdBeginRenderPass(mCommandBuffers[i], &renderpassBegin, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(mCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, mPbrPipeline);
+    vkCmdBindPipeline(mCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, mPipelines.pbr);
     vkCmdBindDescriptorSets(mCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, mPipelineLayout, 0,
       1, &mDescriptorSet, 0, nullptr);
     VkDeviceSize offsets[] = { 0 };
@@ -1198,13 +1207,13 @@ void Base::CreateDescriptorPools()
   std::vector<VkDescriptorPoolSize> poolSizes;
 
   VkDescriptorPoolSize poolSize = { };
-  poolSize.descriptorCount = 1;
+  poolSize.descriptorCount = 3;
   poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
   VkDescriptorPoolSize cubemapPool = { };
-  cubemapPool.descriptorCount = 1;
+  cubemapPool.descriptorCount = 2;
   cubemapPool.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-
+/*
   VkDescriptorPoolSize materialPool = { };
   materialPool.descriptorCount = 1;
   materialPool.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -1212,11 +1221,11 @@ void Base::CreateDescriptorPools()
   VkDescriptorPoolSize lightPool = { };
   lightPool.descriptorCount = 1;
   lightPool.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-
+*/
   poolSizes.push_back(poolSize);
   poolSizes.push_back(cubemapPool);
-  poolSizes.push_back(materialPool);
-  poolSizes.push_back(lightPool);
+  //poolSizes.push_back(materialPool);
+  //poolSizes.push_back(lightPool);
 
   VkDescriptorPoolCreateInfo poolCreateInfo = { };
   poolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1697,7 +1706,7 @@ void Base::RecreateSwapchain()
   vkFreeCommandBuffers(mLogicalDevice, mCommandPool,
     static_cast<uint32_t>(mCommandBuffers.size()), mCommandBuffers.data());
 
-  vkDestroyPipeline(mLogicalDevice, mPbrPipeline, nullptr);
+  vkDestroyPipeline(mLogicalDevice, mPipelines.pbr, nullptr);
   vkDestroyRenderPass(mLogicalDevice, mDefaultRenderPass, nullptr);
   vkDestroyPipelineLayout(mLogicalDevice, mPipelineLayout, nullptr);
   vkFreeMemory(mLogicalDevice, mDepth.memory, nullptr);

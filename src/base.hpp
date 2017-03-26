@@ -282,6 +282,11 @@ protected:
     VkDeviceMemory memory;
     VkImageView imageView; 
   } mDepth;
+
+  struct {
+    VkPipeline skybox;
+    VkPipeline pbr;
+  } mPipelines;
   VkFormat                      mSwapchainFormat;
   VkExtent2D                    mSwapchainExtent;
   VkCommandPool                 mCommandPool;
@@ -290,7 +295,6 @@ protected:
   VkDescriptorPool              mDescriptorPool;
   VkDescriptorSet               mDescriptorSet;
   VkRenderPass                  mDefaultRenderPass;
-  VkPipeline                    mPbrPipeline;
   VkDebugReportCallbackEXT      mCallback;
   global::Window                mWindow;
   uint32_t                      windowWidth;

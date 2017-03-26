@@ -1,3 +1,6 @@
+//
+// Copyright (c) Mario Garcia, MIT License.
+//
 #version 430
 #extension GL_ARB_separate_shader_objects : enable
 

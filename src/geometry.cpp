@@ -30,13 +30,13 @@ GeometryData Geometry::CreateSphere(float radius, uint32_t sliceCount, uint32_t 
   // not a unique point on the texture map to assign to the pole when mapping
   // a rectangular texture onto a sphere.
   Vertex topVertex;
-  topVertex.Position = glm::vec3(0.0f, +radius, 0.0f);
-  topVertex.Normal = glm::vec3(0.0f, 1.0f, 0.0f);
+  topVertex.position = glm::vec3(0.0f, +radius, 0.0f);
+  topVertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
   topVertex.uv = glm::vec2(0.0f, 0.0f);
 
   Vertex bottomVertex;
-  bottomVertex.Position = glm::vec3(0.0f, -radius, 0.0f);
-  bottomVertex.Normal = glm::vec3(0.0f, -1.0f, 0.0f);
+  bottomVertex.position = glm::vec3(0.0f, -radius, 0.0f);
+  bottomVertex.normal = glm::vec3(0.0f, -1.0f, 0.0f);
   bottomVertex.uv = glm::vec2(0.0f, 1.0f);
 
   meshData.vertices.push_back(topVertex);
@@ -57,12 +57,12 @@ GeometryData Geometry::CreateSphere(float radius, uint32_t sliceCount, uint32_t 
       Vertex v;
 
       // spherical to cartesian
-      v.Position.x = radius*sinf(phi)*cosf(theta);
-      v.Position.y = radius*cosf(phi);
-      v.Position.z = radius*sinf(phi)*sinf(theta);
+      v.position.x = radius*sinf(phi)*cosf(theta);
+      v.position.y = radius*cosf(phi);
+      v.position.z = radius*sinf(phi)*sinf(theta);
 
-      glm::vec3 p = glm::vec3(v.Position);
-      v.Normal = glm::normalize(p);
+      glm::vec3 p = glm::vec3(v.position);
+      v.normal = glm::normalize(p);
 
       v.uv.x = theta / float(PI_2);
       v.uv.y = phi / float(PI);

@@ -140,7 +140,8 @@ vec3 BRDF(vec3 V, vec3 N, vec3 L, float metallic, float roughness)
   return color;
 }
 
-void main() {
+void main() 
+{
   vec3 V = ubo.camPosition - fragPos;
   vec3 L = lighting.light.position.xyz - fragPos;
   vec3 N = fragNormal;
