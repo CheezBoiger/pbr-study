@@ -11,7 +11,7 @@
   #include <fcntl.h>
   #include <io.h>
  #elif defined(__linux__) || defined(__POSIX__)
-  #error "Temporary linux ban... Windows is only supported for now..."
+  #include <pthread.h>
  #elif defined(__APPLE__) && defined(__MACH__)
   #error "Mac OSX is not a supported operating system yet! I just dont own a mac to test..."
  #else
