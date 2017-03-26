@@ -131,10 +131,10 @@ vec3 BRDF(vec3 V, vec3 N, vec3 L, float metallic, float roughness)
     // Cook Torrance microfacet specular BRDF
     vec3 brdf = D * F * G / (4 * dotNL * dotNV);
     vec3 kS = F;
-    vec3 kD = lighting.light.color - kS;
+    vec3 kD = vec3(1.0) - kS;
     kD *= 1.0 - metallic;
     //color += brdf * dotNL * lighting.light.color;
-    color += ((kD * vec3(material.r, material.g, material.b)) / PI + brdf) * radiance * dotNL;
+    color += (kD * vec3(material.r, material.g, material.b) / PI + brdf) * radiance * dotNL;
   }
   
   return color;
