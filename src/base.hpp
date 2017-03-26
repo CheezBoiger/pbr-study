@@ -209,6 +209,7 @@ protected:
     VkImageLayout newLayout);
   void CopyImage(VkImage srcImage, VkImage dstImage, uint32_t width, uint32_t height);
   void CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspetFlags, VkImageView &imageView);
+  void CreateCubemaps();
   void CreateTextureImageView();
   void CreateTextureSampler();
   void CreateDefaultDepthResources();
@@ -231,6 +232,7 @@ protected:
   } mSemaphores;
 
   /// Simple test mesh.
+  /// This can be an object on it's own.
   struct {
     VkBuffer vertexBuffer;
     VkBuffer indicesBuffer;
@@ -238,13 +240,23 @@ protected:
     VkDeviceMemory indicesMemory;
   } mesh;
 
-
+  /// Simple Texture image.
+  /// This can be an object on its own.
   struct {
     VkImage image;
     VkImageView imageView;
     VkSampler sampler;
     VkDeviceMemory memory;
   } texture;
+
+  /// Radiance and Irradiance cubemaps.
+  /// This can be an object on its own.
+  struct {
+    VkImage image;
+    VkImageView view;
+    VkDeviceMemory memory;
+    VkSampler sampler;
+  } radiance, irradiance;
 
   /// Ubo info.
   struct {
@@ -287,6 +299,7 @@ protected:
     VkPipeline skybox;
     VkPipeline pbr;
   } mPipelines;
+
   VkFormat                      mSwapchainFormat;
   VkExtent2D                    mSwapchainExtent;
   VkCommandPool                 mCommandPool;

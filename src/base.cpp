@@ -352,6 +352,7 @@ Base::~Base()
   vkDestroyBuffer(mLogicalDevice, mesh.vertexBuffer, nullptr);
   vkDestroyCommandPool(mLogicalDevice, mCommandPool, nullptr);
   vkDestroyPipeline(mLogicalDevice, mPipelines.pbr, nullptr);
+  vkDestroyPipeline(mLogicalDevice, mPipelines.skybox, nullptr);
   vkDestroyRenderPass(mLogicalDevice, mDefaultRenderPass, nullptr);
   vkDestroyPipelineLayout(mLogicalDevice, mPipelineLayout, nullptr);
   vkDestroySwapchainKHR(mLogicalDevice, mSwapchain, nullptr);
@@ -684,6 +685,11 @@ void Base::CreateImageViews()
 }
 
 
+void Base::CreateCubemaps()
+{
+}
+
+
 void Base::CreateGraphicsPipeline()
 {
   VkShaderModule vert = ShaderModule::GenerateShaderModule(mLogicalDevice, 
@@ -846,8 +852,10 @@ void Base::CreateGraphicsPipeline()
   gPipelineCreateInfo.renderPass = mDefaultRenderPass;
   // For deriving from a base pipeline (parent). This is a single pipeline, so
   // we aren't deriving from any other pipeline.
+  gPipelineCreateInfo.flags = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT;
   gPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
   gPipelineCreateInfo.basePipelineIndex = -1;
+  
 
   result = vkCreateGraphicsPipelines(mLogicalDevice, VK_NULL_HANDLE, 1, 
     &gPipelineCreateInfo, nullptr, &mPipelines.pbr);
@@ -856,7 +864,13 @@ void Base::CreateGraphicsPipeline()
   vkDestroyShaderModule(mLogicalDevice, vert, nullptr);
   vkDestroyShaderModule(mLogicalDevice, frag, nullptr);
 
-  
+  shaderInfos[0].module = skyVert;
+  shaderInfos[1].module = skyFrag;
+  gPipelineCreateInfo.flags = VK_PIPELINE_CREATE_DERIVATIVE_BIT;
+  gPipelineCreateInfo.basePipelineHandle = mPipelines.pbr;
+  result = vkCreateGraphicsPipelines(mLogicalDevice, VK_NULL_HANDLE, 1,
+    &gPipelineCreateInfo, nullptr, &mPipelines.skybox);
+  BASE_ASSERT(result == VK_SUCCESS && "Failed to create skybox pipeline!");
 
   vkDestroyShaderModule(mLogicalDevice, skyVert, nullptr);
   vkDestroyShaderModule(mLogicalDevice, skyFrag, nullptr);  
@@ -1707,6 +1721,7 @@ void Base::RecreateSwapchain()
     static_cast<uint32_t>(mCommandBuffers.size()), mCommandBuffers.data());
 
   vkDestroyPipeline(mLogicalDevice, mPipelines.pbr, nullptr);
+  vkDestroyPipeline(mLogicalDevice, mPipelines.skybox, nullptr);
   vkDestroyRenderPass(mLogicalDevice, mDefaultRenderPass, nullptr);
   vkDestroyPipelineLayout(mLogicalDevice, mPipelineLayout, nullptr);
   vkFreeMemory(mLogicalDevice, mDepth.memory, nullptr);
