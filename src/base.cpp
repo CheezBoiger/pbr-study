@@ -39,7 +39,7 @@
 #define APPEND_AB(a, b) a##b
 
 // If you prefer to render the sphere, set this to 1 
-#define SPHERE 0
+#define SPHERE 1
 
 #if BASE_DEBUG
  #define BASE_ASSERT(expr) assert(expr)
@@ -855,10 +855,10 @@ void Base::CreateCubemap(gli::texture_cube &cubeMap, Cubemap &cubemap)
   imageVCreate.subresourceRange.layerCount = 6;
   imageVCreate.subresourceRange.levelCount = cubeMap.levels();
   imageVCreate.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
-  imageVCreate.components.a = VK_COMPONENT_SWIZZLE_A;
-  imageVCreate.components.b = VK_COMPONENT_SWIZZLE_B;
-  imageVCreate.components.g = VK_COMPONENT_SWIZZLE_G;
-  imageVCreate.components.r = VK_COMPONENT_SWIZZLE_R;
+  imageVCreate.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+  imageVCreate.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+  imageVCreate.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+  imageVCreate.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
   result = vkCreateImageView(mLogicalDevice, &imageVCreate, nullptr, &cubemap.view);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to create enviroment map image view!");
 }
