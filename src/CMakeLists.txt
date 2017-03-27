@@ -16,7 +16,7 @@ include_directories(SYSTEM
   ${CMAKE_SOURCE_DIR}/external/freetype/include
   ${CMAKE_SOURCE_DIR}/external/glslang
   ${CMAKE_SOURCE_DIR}/external/glfw/include
-  ${CMAKE_SOURCE_DIR}/external/glm/include
+  ${CMAKE_SOURCE_DIR}/external/g_truc/include
   ${Vulkan_INCLUDE_DIRS}
 )
 

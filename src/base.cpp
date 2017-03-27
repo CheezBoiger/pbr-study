@@ -19,6 +19,9 @@
 #include <array>
 #include <chrono>
 
+#include <gli/gli.hpp>
+
+
 // For debugging. Set to 1 to start up validation layers.
 // You can disable this value to prevent validation layers from
 // setting up, which will remove error checking when rendering.
@@ -290,6 +293,7 @@ struct UBO {
 struct MaterialUBO {
   float roughness;
   float metallic;
+  float gloss;
   float r;
   float g;
   float b;
@@ -325,20 +329,32 @@ Base::~Base()
   vkFreeCommandBuffers(mLogicalDevice, mCommandPool, 
     static_cast<uint32_t>(mCommandBuffers.size()), mCommandBuffers.data());
 
+  vkFreeMemory(mLogicalDevice, mEnvMap.memory, nullptr);
   vkFreeMemory(mLogicalDevice, mDepth.memory, nullptr);
   vkFreeMemory(mLogicalDevice, mMaterial.memory, nullptr);
   vkFreeMemory(mLogicalDevice, mMaterial.stagingMemory, nullptr);
   vkFreeMemory(mLogicalDevice, mPointLight.stagingMemory, nullptr);
   vkFreeMemory(mLogicalDevice, mPointLight.memory, nullptr);
+  vkFreeMemory(mLogicalDevice, mSkybox.memory, nullptr);
+  vkFreeMemory(mLogicalDevice, mIrradianceMap.memory, nullptr);
   vkDestroyBuffer(mLogicalDevice, mMaterial.stagingBuffer, nullptr);
   vkDestroyBuffer(mLogicalDevice, mMaterial.buffer, nullptr);
   vkDestroyBuffer(mLogicalDevice, mPointLight.stagingBuffer, nullptr);
   vkDestroyBuffer(mLogicalDevice, mPointLight.buffer, nullptr);
+  vkDestroyImage(mLogicalDevice, mEnvMap.image, nullptr);
   vkDestroyImage(mLogicalDevice, texture.image, nullptr);
   vkDestroyImage(mLogicalDevice, mDepth.image, nullptr);
+  vkDestroyImage(mLogicalDevice, mSkybox.image, nullptr);
+  vkDestroyImage(mLogicalDevice, mIrradianceMap.image, nullptr);
+  vkDestroyImageView(mLogicalDevice, mEnvMap.view, nullptr);
   vkDestroyImageView(mLogicalDevice, mDepth.imageView, nullptr);
   vkDestroyImageView(mLogicalDevice, texture.imageView, nullptr);
+  vkDestroyImageView(mLogicalDevice, mSkybox.view, nullptr);
+  vkDestroyImageView(mLogicalDevice, mIrradianceMap.view, nullptr); 
+  vkDestroySampler(mLogicalDevice, mEnvMap.sampler, nullptr);
   vkDestroySampler(mLogicalDevice, texture.sampler, nullptr);
+  vkDestroySampler(mLogicalDevice, mSkybox.sampler, nullptr);
+  vkDestroySampler(mLogicalDevice, mIrradianceMap.sampler, nullptr);
   vkFreeMemory(mLogicalDevice, texture.memory, nullptr);
   vkFreeMemory(mLogicalDevice, mUbo.stagingMemory, nullptr);
   vkFreeMemory(mLogicalDevice, mUbo.memory, nullptr);
@@ -685,19 +701,172 @@ void Base::CreateImageViews()
 }
 
 
+void Base::CreateCubemap(gli::texture_cube &cubeMap, Cubemap &cubemap)
+{
+  VkBuffer stagingBuffer;
+  VkDeviceMemory stagingMemory;
+
+  VkBufferCreateInfo createInfo = { };
+  createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+  createInfo.size = cubeMap.size();
+  VkResult result = vkCreateBuffer(mLogicalDevice, &createInfo, nullptr, &stagingBuffer);
+  BASE_ASSERT(result == VK_SUCCESS && "Failed to create staging buffer");
+  
+  VkMemoryRequirements memReqs = { };
+  vkGetBufferMemoryRequirements(mLogicalDevice, stagingBuffer, &memReqs);
+  
+  VkMemoryAllocateInfo allocInfo = { };
+  allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  allocInfo.memoryTypeIndex = FindMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
+    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+  allocInfo.allocationSize = memReqs.size;
+  
+  result = vkAllocateMemory(mLogicalDevice, &allocInfo, nullptr, &stagingMemory);
+  BASE_ASSERT(result == VK_SUCCESS && "Failed to allocate staging buffer memory!");
+
+  vkBindBufferMemory(mLogicalDevice, stagingBuffer, stagingMemory, 0);
+  
+  void *data;
+  vkMapMemory(mLogicalDevice, stagingMemory, 0, memReqs.size, 0, &data);
+    memcpy(data, cubeMap.data(), (size_t )cubeMap.size());
+  vkUnmapMemory(mLogicalDevice, stagingMemory);
+
+  std::vector<VkBufferImageCopy> bufferCopyRegions;
+  size_t offset = 0;
+  for (uint32_t face = 0; face < 6; ++face) {
+    for (uint32_t level = 0; level < cubeMap.levels(); ++level) {
+      VkBufferImageCopy copyRegion = { };
+      copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+      copyRegion.imageSubresource.baseArrayLayer = face;
+      copyRegion.imageSubresource.mipLevel = level;
+      copyRegion.imageSubresource.layerCount = 1;
+      copyRegion.imageExtent.width = (uint32_t )cubeMap[face][level].extent().x;
+      copyRegion.imageExtent.height = (uint32_t )cubeMap[face][level].extent().y;
+      copyRegion.imageExtent.depth = 1;
+      copyRegion.bufferOffset = offset;
+      bufferCopyRegions.push_back(copyRegion);
+
+      // increase offset.
+      offset += cubeMap[face][level].size();
+    }
+  }
+
+  uint32_t width = cubeMap.extent().x;
+  uint32_t height = cubeMap.extent().y;
+  // no need for mipmap levels, we don't have any.
+  VkImageCreateInfo imageInfo = { };
+  imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+  imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  imageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+  imageInfo.imageType = VK_IMAGE_TYPE_2D;
+  imageInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+  imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  imageInfo.mipLevels = cubeMap.levels();
+  imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+  imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+  imageInfo.extent = { width, height, 1 };
+  imageInfo.arrayLayers = 6;
+  
+  result = vkCreateImage(mLogicalDevice, &imageInfo, nullptr, &cubemap.image);
+  BASE_ASSERT(result == VK_SUCCESS && "Failed to create Enviroment map image!");
+
+  vkGetImageMemoryRequirements(mLogicalDevice, cubemap.image, &memReqs);
+  allocInfo.allocationSize = memReqs.size;
+  allocInfo.memoryTypeIndex = FindMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  
+  result = vkAllocateMemory(mLogicalDevice, &allocInfo, nullptr, &cubemap.memory);
+  BASE_ASSERT(result == VK_SUCCESS && "Failed to allocate Enviroment map memory!");
+  vkBindImageMemory(mLogicalDevice, cubemap.image, cubemap.memory, 0);
+  
+  // One time commandbuffer setting.
+  VkCommandBuffer commandbuffer = BeginSingleTimeCommands();
+  VkImageSubresourceRange subresourceRange = { };
+  subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  subresourceRange.baseMipLevel = 0;
+  subresourceRange.layerCount = 6;
+  subresourceRange.levelCount = cubeMap.levels();
+  
+  VkImageMemoryBarrier barrier = { };
+  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  barrier.srcAccessMask = 0;
+  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.subresourceRange = subresourceRange;
+  barrier.image = cubemap.image;
+  barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+  vkCmdPipelineBarrier(commandbuffer, 
+    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+    0, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, 1, &barrier);
+  
+  vkCmdCopyBufferToImage(commandbuffer, stagingBuffer, cubemap.image, 
+    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, bufferCopyRegions.size(), bufferCopyRegions.data());
+
+  barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+  barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+  vkCmdPipelineBarrier(commandbuffer,
+    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+    0, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, 1, &barrier);
+
+  // end and flush the commandbuffer.
+  EndSingleTimeCommands(commandbuffer);
+  
+  vkFreeMemory(mLogicalDevice, stagingMemory, nullptr);
+  vkDestroyBuffer(mLogicalDevice, stagingBuffer, nullptr);
+
+  VkSamplerCreateInfo samplerInfo = { };
+  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  samplerInfo.magFilter = VK_FILTER_LINEAR;
+  samplerInfo.minFilter = VK_FILTER_LINEAR;
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerInfo.mipLodBias = 0.0f;
+  samplerInfo.maxAnisotropy = 16;
+  samplerInfo.compareOp = VK_COMPARE_OP_NEVER;
+  samplerInfo.anisotropyEnable = VK_TRUE;
+  samplerInfo.maxLod = 1;
+  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
+  result = vkCreateSampler(mLogicalDevice, &samplerInfo, nullptr, &cubemap.sampler);
+  BASE_ASSERT(result == VK_SUCCESS && "Filed to create enviroment map sampler!");
+
+  VkImageViewCreateInfo imageVCreate = { };
+  imageVCreate.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+  imageVCreate.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+  imageVCreate.image = cubemap.image;
+  imageVCreate.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  imageVCreate.subresourceRange.baseArrayLayer = 0;
+  imageVCreate.subresourceRange.baseMipLevel = 0;
+  imageVCreate.subresourceRange.layerCount = 6;
+  imageVCreate.subresourceRange.levelCount = cubeMap.levels();
+  imageVCreate.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+  imageVCreate.components.a = VK_COMPONENT_SWIZZLE_A;
+  imageVCreate.components.b = VK_COMPONENT_SWIZZLE_B;
+  imageVCreate.components.g = VK_COMPONENT_SWIZZLE_G;
+  imageVCreate.components.r = VK_COMPONENT_SWIZZLE_R;
+  result = vkCreateImageView(mLogicalDevice, &imageVCreate, nullptr, &cubemap.view);
+  BASE_ASSERT(result == VK_SUCCESS && "Failed to create enviroment map image view!");
+}
+
+
 void Base::CreateCubemaps()
 {
-  int32_t rwidth, rheight, rchannels;
-  int32_t iwidth, iheight, ichannels;
-  stbi_uc *radianceMap = stbi_load(PBR_STUDY_DIR"/maps/subway_radiance.hdr", &rwidth, 
-    &rheight, &rchannels, STBI_rgb_alpha);
-  BASE_ASSERT(radianceMap && "Radiance map did not successfully load!");
-  stbi_uc *irradianceMap = stbi_load(PBR_STUDY_DIR"/maps/subay_irradiance.hdr", &iwidth, 
-    &iheight, &ichannels, STBI_rgb_alpha);
-  BASE_ASSERT(radianceMap && "Irradiance map did not successfully load!");
+  gli::texture_cube cubeMap(gli::load(PBR_STUDY_DIR"/maps/subway_skybox.ktx"));
+  gli::texture_cube irradianceMap(gli::load(PBR_STUDY_DIR"/maps/subway_irradiance.ktx"));
+  gli::texture_cube skyBox(gli::load(PBR_STUDY_DIR"/maps/subway_skybox.ktx"));
 
-  stbi_image_free(radianceMap);
-  stbi_image_free(irradianceMap);
+  CreateCubemap(cubeMap, mEnvMap);
+  CreateCubemap(irradianceMap, mIrradianceMap);
+  CreateCubemap(skyBox, mSkybox);
 }
 
 
@@ -1236,7 +1405,7 @@ void Base::CreateDescriptorPools()
   poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
   VkDescriptorPoolSize cubemapPool = { };
-  cubemapPool.descriptorCount = 2;
+  cubemapPool.descriptorCount = 8;
   cubemapPool.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 /*
   VkDescriptorPoolSize materialPool = { };
@@ -1282,8 +1451,8 @@ void Base::CreateDescriptorSets()
   bufferInfo.range = sizeof(ubo);
 
   VkDescriptorImageInfo imageInfo = { };
-  imageInfo.sampler = texture.sampler;
-  imageInfo.imageView = texture.imageView;
+  imageInfo.sampler = mEnvMap.sampler;
+  imageInfo.imageView = mEnvMap.view;
   imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
   VkDescriptorBufferInfo materialBufferInfo = { };
@@ -1668,6 +1837,7 @@ void Base::Initialize()
 
   material.roughness = 0.5f;
   material.metallic = 0.5f;
+  material.gloss = 1.0f;
   material.r = 1.0f;
   material.g = 0.0f;
   material.b = 0.0f;
@@ -1837,8 +2007,8 @@ void Base::AdjustMaterialValues()
   if (material.roughness > 1.0f) {
     material.roughness = 1.0f;
   }
-  if (material.roughness < 0.1f) {  
-    material.roughness = 0.1f;
+  if (material.roughness < 0.01f) {  
+    material.roughness = 0.01f;
   }
 }
 

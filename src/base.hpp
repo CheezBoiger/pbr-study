@@ -1,8 +1,8 @@
 //
 // Copyright (c) Mario Garcia, MIT License.
 //
-#ifndef __BASE_HPP
-#define __BASE_HPP
+#ifndef __RENDERER_BASE_HPP
+#define __RENDERER_BASE_HPP
 
 
 #include <stdint.h>
@@ -13,6 +13,11 @@
 
 
 struct GLFWwindow;
+
+// Stupid...
+namespace gli {
+  class texture_cube;
+}
 
 
 namespace pbr {
@@ -34,6 +39,7 @@ class Shader;
 /// alot of the Render API calls, but this would require time, blood, sweat and tears,
 /// so I'll leave that for my Vikr Renderer API. 
 class Base {
+  struct Cubemap;
 public:
   Base();
   virtual ~Base();
@@ -187,6 +193,7 @@ protected:
   void CreateDescriptorPools();
   void CreateDescriptorSets();
   void CreateTextureImages();
+  void CreateCubmapViews();
   void SetupCamera();
   void MoveCamera();
 
@@ -213,6 +220,8 @@ protected:
   void CreateTextureImageView();
   void CreateTextureSampler();
   void CreateDefaultDepthResources();
+  void CreateCubemap(gli::texture_cube &cube, Cubemap &cubemap);
+
   VkFormat FindSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling,
     VkFormatFeatureFlags flags);
   bool HasStencilComponent(VkFormat format);
@@ -249,14 +258,14 @@ protected:
     VkDeviceMemory memory;
   } texture;
 
-  /// Radiance and Irradiance cubemaps.
+  /// Enviroment and skybox cubemaps.
   /// This can be an object on its own.
-  struct {
+  struct Cubemap {
     VkImage image;
     VkImageView view;
     VkDeviceMemory memory;
     VkSampler sampler;
-  } radiance, irradiance;
+  } mEnvMap, mSkybox, mIrradianceMap;
 
   /// Ubo info.
   struct {
@@ -317,4 +326,4 @@ protected:
   double                        mDt;
 };
 } // pbr
-#endif // __BASE_HPP
+#endif // __RENDERER_BASE_HPP
