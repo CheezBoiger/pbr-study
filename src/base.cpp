@@ -306,6 +306,7 @@ struct PointLightUBO {
   glm::vec4 Position;
   glm::vec3 Color;
   float Radius;
+  int enable;
 } pointLight;
 
 
@@ -1942,6 +1943,7 @@ void Base::Initialize()
   material.r = 1.0f;
   material.g = 1.0f;
   material.b = 1.0f;
+  pointLight.enable = 0;
 }
 
 
@@ -2103,6 +2105,12 @@ void Base::AdjustMaterialValues()
   } 
   if (global::keyCodes[GLFW_KEY_T]) {
     material.roughness -= 0.15f * (float)mDt;
+  }
+
+  if (global::keyCodes[GLFW_KEY_L]) {
+    pointLight.enable = 1;
+  } else if (global::keyCodes[GLFW_KEY_O]) {
+    pointLight.enable = 0;
   }
 
   if (material.metallic < 0.1f) {

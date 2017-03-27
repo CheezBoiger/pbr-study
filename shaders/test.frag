@@ -42,6 +42,7 @@ struct PointLight {
   vec4 position;
   vec3 color;
   float radius;
+  bool enable;
 };
 
 // Offset values are rather strange here...
@@ -282,15 +283,15 @@ void main()
   vec3 irradianceSample = pow(texture(irradianceMap, N).rgb, vec3(2.2));
   
   //vec3 color = ApproximateSpecularIBL(specularColor, material.roughness, N, V);
-  //color *= BRDF(V, N, L, material.metallic, material.roughness);
-  //color += vec3(material.r, material.g, material.b) * 0.02;
  
   vec3 reflection = EnvBRDFApprox(specularColor, pow(material.roughness, 1.0f), clamp(dot(N, V), 0.0, 1.0));
   
   vec3 diffuse = diffuseColor * irradianceSample;
   vec3 specular = radianceSample * reflection;
   vec3 color = diffuse + specular;
-
+  if (lighting.light.enable) {
+    color += BRDF(V, N, L, material.metallic, material.roughness);
+  }
    // calculate for gamma correction and hdr rendering.
   color = color / (color + vec3(1.0));
   color = pow(color, vec3(1.0/2.2));

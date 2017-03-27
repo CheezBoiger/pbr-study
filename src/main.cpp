@@ -21,6 +21,8 @@ int main(int c, char *argv[]) {
   
     Hold M/N = Increase/Decrease metallic value
     Hold R/T = Increase/Decrease roughness value
+  
+    L/O = Turn on/off lights.
     
     ESC = quit.
 
