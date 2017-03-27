@@ -27,8 +27,9 @@ layout (binding = 0) uniform UniformBufferObject {
 } ubo;
 
 layout (binding = 1) uniform samplerCube envMap;
+layout (binding = 2) uniform samplerCube irradianceMap;
 
-layout (binding = 2) uniform Material {
+layout (binding = 4) uniform Material {
   float roughness;
   float metallic;
   float specular;
@@ -44,7 +45,7 @@ struct PointLight {
 };
 
 // Offset values are rather strange here...
-layout (binding = 3) uniform Lighting {
+layout (binding = 5) uniform Lighting {
   PointLight light;
 } lighting;
 
@@ -236,6 +237,18 @@ vec2 IntegrateBRDF(float roughness, float NoV, vec3 N)
   return vec2(A, B) / kNumSamples;
 }
 
+// Environment BRDF approximation from 
+// https://www.unrealengine.com/blog/physically-based-shading-on-mobile
+vec3 EnvBRDFApprox(vec3 SpecularColor, float Roughness, float NoV) 
+{
+	vec4 c0 = vec4(-1, -0.0275, -0.572, 0.022);
+	vec4 c1 = vec4(1, 0.0425, 1.04, -0.04);
+	vec4 r = Roughness * c0 + c1;
+	float a004 = min(r.x * r.x, exp2(-9.28 * NoV)) * r.x + r.y;
+	vec2 AB = vec2(-1.04, 1.04) * a004 + r.zw;
+	return SpecularColor * AB.x + AB.y;
+}
+
 vec3 ApproximateSpecularIBL(vec3 specularColor, float roughness, vec3 N, vec3 V)
 {
   vec3 nN = normalize(N);
@@ -250,18 +263,40 @@ vec3 ApproximateSpecularIBL(vec3 specularColor, float roughness, vec3 N, vec3 V)
 
 void main() 
 {
-  vec3 V = ubo.camPosition - fragPos;
+  vec3 V = normalize(ubo.camPosition - fragPos);
   vec3 L = lighting.light.position.xyz - fragPos;
-  vec3 N = fragNormal;
+  vec3 N = normalize(fragNormal);
   vec3 R = reflect(-V, N);
+
+  ivec2 cubedim = textureSize(envMap, 0);
+  int numMipLevels = int(log2(max(cubedim.s, cubedim.y)));
+  float mipLevel = numMipLevels - 1.0 + log2(material.roughness);
+  
   vec3 baseColor = vec3(material.r, material.g, material.b);
+  vec3 diffuseColor = baseColor - baseColor * material.metallic;
   vec3 specularColor = mix(vec3(material.specular), baseColor, material.metallic);
-  vec3 color = ApproximateSpecularIBL(specularColor, material.roughness, N, V);
+  
+  vec3 radianceSample = pow(textureLod(envMap, R, mipLevel).rgb, vec3(2.2));
+  vec3 irradianceSample = pow(texture(irradianceMap, N).rgb, vec3(2.2));
+  
+  //vec3 color = ApproximateSpecularIBL(specularColor, material.roughness, N, V);
   //color *= BRDF(V, N, L, material.metallic, material.roughness);
   //color += vec3(material.r, material.g, material.b) * 0.02;
+ 
+  vec3 reflection = EnvBRDFApprox(specularColor, pow(material.roughness, 1.0f), clamp(dot(N, V), 0.0, 1.0));
+  
+  vec3 diffuse = diffuseColor * irradianceSample;
+  vec3 specular = radianceSample * reflection;
+  vec3 color = diffuse + specular;
   
    // calculate for gamma correction and hdr rendering.
   color = color / (color + vec3(1.0));
   color = pow(color, vec3(1.0/2.2));
   outColor = vec4(color, 1.0f);//texture(image, fragTexCoord);
 }
+
+
+
+
+
+

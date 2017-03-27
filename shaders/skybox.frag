@@ -3,7 +3,7 @@
 //
 #version 430
 #extension GL_ARB_separate_shader_objects : enable
-layout (location = 0) in vec3 inPosition;
+layout (location = 0) in vec3 inUVW;
 
 layout (location = 0) out vec4 outColor;
 
@@ -14,9 +14,9 @@ layout (binding = 0) uniform UniformBufferObject {
   vec3 camPosition;
 } ubo;
 
-layout (binding = 1) uniform samplerCube skybox;
+layout (binding = 3) uniform samplerCube skybox;
 
 void main()
 {
-  outColor = texture(skybox, inPosition);
+  outColor = texture(skybox, inUVW);
 }

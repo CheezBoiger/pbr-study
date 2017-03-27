@@ -249,6 +249,13 @@ protected:
     VkDeviceMemory indicesMemory;
   } mesh;
 
+  struct {
+    VkBuffer vertexBuffer;
+    VkBuffer indicesBuffer;
+    VkDeviceMemory vertexMemory;
+    VkDeviceMemory indicesMemory;
+  } skyboxMesh;
+
   /// Simple Texture image.
   /// This can be an object on its own.
   struct {
@@ -288,6 +295,13 @@ protected:
     VkDeviceMemory stagingMemory;
     VkDeviceMemory memory;
   } mMaterial;
+
+  struct {
+    VkBuffer buffer;
+    VkDeviceMemory memory;
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingMemory;
+  } mSkyboxUBO;
   
   VkPhysicalDevice              mPhysicalDevice;
   VkDevice                      mLogicalDevice;
@@ -316,6 +330,7 @@ protected:
   VkDescriptorSetLayout         mDescriptorSetLayout;
   VkDescriptorPool              mDescriptorPool;
   VkDescriptorSet               mDescriptorSet;
+  VkDescriptorSet               mDescriptorSetSkybox;
   VkRenderPass                  mDefaultRenderPass;
   VkDebugReportCallbackEXT      mCallback;
   global::Window                mWindow;

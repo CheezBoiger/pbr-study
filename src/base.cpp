@@ -39,7 +39,7 @@
 #define APPEND_AB(a, b) a##b
 
 // If you prefer to render the sphere, set this to 1 
-#define SPHERE 1
+#define SPHERE 0
 
 #if BASE_DEBUG
  #define BASE_ASSERT(expr) assert(expr)
@@ -276,8 +276,10 @@ const std::vector<uint32_t> indices = {
 #if SPHERE
 const GeometryData model = Geometry::CreateSphere(1.0f, 60, 60);
 #else
-const GeometryData model = Model::LoadModel("Happy buddha", PBR_STUDY_DIR"/buddha.obj");
+const GeometryData model = Model::LoadModel("Happy buddha", PBR_STUDY_DIR"/dragon.obj");
 #endif
+
+const GeometryData skybox = Geometry::CreateCube();
 } // global
 
 
@@ -337,10 +339,14 @@ Base::~Base()
   vkFreeMemory(mLogicalDevice, mPointLight.memory, nullptr);
   vkFreeMemory(mLogicalDevice, mSkybox.memory, nullptr);
   vkFreeMemory(mLogicalDevice, mIrradianceMap.memory, nullptr);
+  vkFreeMemory(mLogicalDevice, mSkyboxUBO.memory, nullptr);
+  vkFreeMemory(mLogicalDevice, mSkyboxUBO.stagingMemory, nullptr);
   vkDestroyBuffer(mLogicalDevice, mMaterial.stagingBuffer, nullptr);
   vkDestroyBuffer(mLogicalDevice, mMaterial.buffer, nullptr);
   vkDestroyBuffer(mLogicalDevice, mPointLight.stagingBuffer, nullptr);
   vkDestroyBuffer(mLogicalDevice, mPointLight.buffer, nullptr);
+  vkDestroyBuffer(mLogicalDevice, mSkyboxUBO.buffer, nullptr);
+  vkDestroyBuffer(mLogicalDevice, mSkyboxUBO.stagingBuffer, nullptr);
   vkDestroyImage(mLogicalDevice, mEnvMap.image, nullptr);
   vkDestroyImage(mLogicalDevice, texture.image, nullptr);
   vkDestroyImage(mLogicalDevice, mDepth.image, nullptr);
@@ -942,8 +948,8 @@ void Base::CreateGraphicsPipeline()
   rasterStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
   rasterStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
   rasterStateCreateInfo.lineWidth = 1.0f;
-  rasterStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-  rasterStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;  
+  rasterStateCreateInfo.cullMode = VK_CULL_MODE_FRONT_BIT;
+  rasterStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;  
   rasterStateCreateInfo.depthBiasEnable = VK_FALSE;
   rasterStateCreateInfo.depthBiasClamp = 0.0f;
   rasterStateCreateInfo.depthBiasConstantFactor = 0.0f;
@@ -1044,10 +1050,13 @@ void Base::CreateGraphicsPipeline()
   vkDestroyShaderModule(mLogicalDevice, vert, nullptr);
   vkDestroyShaderModule(mLogicalDevice, frag, nullptr);
 
+  rasterStateCreateInfo.cullMode = VK_CULL_MODE_FRONT_BIT;
+  rasterStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
   shaderInfos[0].module = skyVert;
   shaderInfos[1].module = skyFrag;
   gPipelineCreateInfo.flags = VK_PIPELINE_CREATE_DERIVATIVE_BIT;
   gPipelineCreateInfo.basePipelineHandle = mPipelines.pbr;
+  
   result = vkCreateGraphicsPipelines(mLogicalDevice, VK_NULL_HANDLE, 1,
     &gPipelineCreateInfo, nullptr, &mPipelines.skybox);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to create skybox pipeline!");
@@ -1195,10 +1204,19 @@ void Base::CreateCommandBuffers()
     renderpassBegin.clearValueCount = (uint32_t )clearValues.size();
     renderpassBegin.pClearValues = clearValues.data();
     vkCmdBeginRenderPass(mCommandBuffers[i], &renderpassBegin, VK_SUBPASS_CONTENTS_INLINE);
+    VkDeviceSize offsets[] = { 0 };
+
+    vkCmdBindPipeline(mCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, mPipelines.skybox);
+    vkCmdBindDescriptorSets(mCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, mPipelineLayout, 
+      0, 1, &mDescriptorSetSkybox, 0, nullptr);
+    vkCmdBindVertexBuffers(mCommandBuffers[i], 0, 1, &mesh.vertexBuffer, offsets);
+    vkCmdBindIndexBuffer(mCommandBuffers[i], mesh.indicesBuffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(mCommandBuffers[i], (uint32_t )global::model.indices.size(), 1, 0, 0, 0);
+
+    
     vkCmdBindPipeline(mCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, mPipelines.pbr);
     vkCmdBindDescriptorSets(mCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, mPipelineLayout, 0,
       1, &mDescriptorSet, 0, nullptr);
-    VkDeviceSize offsets[] = { 0 };
     vkCmdBindVertexBuffers(mCommandBuffers[i], 0, 1, &mesh.vertexBuffer, offsets);
     vkCmdBindIndexBuffer(mCommandBuffers[i], mesh.indicesBuffer, 0, VK_INDEX_TYPE_UINT32);
     // hardcoded values.
@@ -1335,16 +1353,32 @@ void Base::CreateDescriptorSetLayouts()
 
   setLayoutBindings.push_back(uboLayoutBinding);
 
-  VkDescriptorSetLayoutBinding cubemapLayoutBinding = { };
-  cubemapLayoutBinding.binding = 1;
-  cubemapLayoutBinding.descriptorCount = 1;
-  cubemapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-  cubemapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  VkDescriptorSetLayoutBinding radianceLayoutBinding = { };
+  radianceLayoutBinding.binding = 1;
+  radianceLayoutBinding.descriptorCount = 1;
+  radianceLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  radianceLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-  setLayoutBindings.push_back(cubemapLayoutBinding);
+  setLayoutBindings.push_back(radianceLayoutBinding);
+
+  VkDescriptorSetLayoutBinding irradianceLayoutBinding = { };
+  irradianceLayoutBinding.binding = 2;
+  irradianceLayoutBinding.descriptorCount = 1;
+  irradianceLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  irradianceLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+  setLayoutBindings.push_back(irradianceLayoutBinding);
+
+  VkDescriptorSetLayoutBinding skyboxLayoutBinding = {};
+  skyboxLayoutBinding.binding = 3;
+  skyboxLayoutBinding.descriptorCount = 1;
+  skyboxLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  skyboxLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+  setLayoutBindings.push_back(skyboxLayoutBinding);
 
   VkDescriptorSetLayoutBinding materialLayoutBinding = { };
-  materialLayoutBinding.binding = 2;
+  materialLayoutBinding.binding = 4;
   materialLayoutBinding.descriptorCount = 1;
   materialLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
   materialLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -1352,7 +1386,7 @@ void Base::CreateDescriptorSetLayouts()
   setLayoutBindings.push_back(materialLayoutBinding);
   
   VkDescriptorSetLayoutBinding lightLayoutBinding = { };
-  lightLayoutBinding.binding = 3;
+  lightLayoutBinding.binding = 5;
   lightLayoutBinding.descriptorCount = 1;
   lightLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
   lightLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -1393,6 +1427,14 @@ void Base::CreateUniformBuffers()
   CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mMaterial.buffer,
     mMaterial.memory);
+
+  bufferSize = sizeof(ubo);
+  CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mSkyboxUBO.stagingBuffer,
+    mSkyboxUBO.stagingMemory);
+  CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mSkyboxUBO.buffer,
+    mSkyboxUBO.memory);
 }
 
 
@@ -1401,7 +1443,7 @@ void Base::CreateDescriptorPools()
   std::vector<VkDescriptorPoolSize> poolSizes;
 
   VkDescriptorPoolSize poolSize = { };
-  poolSize.descriptorCount = 3;
+  poolSize.descriptorCount = 6;
   poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
   VkDescriptorPoolSize cubemapPool = { };
@@ -1425,7 +1467,7 @@ void Base::CreateDescriptorPools()
   poolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
   poolCreateInfo.poolSizeCount = (uint32_t )poolSizes.size();
   poolCreateInfo.pPoolSizes = poolSizes.data();
-  poolCreateInfo.maxSets = 1;
+  poolCreateInfo.maxSets = 2;
 
   VkResult result = vkCreateDescriptorPool(mLogicalDevice, &poolCreateInfo, nullptr, &mDescriptorPool);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to create ubo descriptor pool");
@@ -1435,14 +1477,16 @@ void Base::CreateDescriptorPools()
 
 void Base::CreateDescriptorSets()
 {
-  VkDescriptorSetLayout layouts[] = { mDescriptorSetLayout };
+  std::array<VkDescriptorSetLayout, 1> layouts = { mDescriptorSetLayout };
   VkDescriptorSetAllocateInfo allocInfo = { };
   allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
   allocInfo.descriptorSetCount = 1;
   allocInfo.descriptorPool = mDescriptorPool;
-  allocInfo.pSetLayouts = layouts;
+  allocInfo.pSetLayouts = layouts.data();
   VkResult result = vkAllocateDescriptorSets(mLogicalDevice, &allocInfo, &mDescriptorSet);
   BASE_ASSERT(result == VK_SUCCESS && "Failed to alloc descriptor pool on the gpu.");
+  result = vkAllocateDescriptorSets(mLogicalDevice, &allocInfo, &mDescriptorSetSkybox);
+  BASE_ASSERT(result == VK_SUCCESS && "Failed to alloc descriptor pool for skybox on the gpu.");
   
   // Create the actual descriptor set.
   VkDescriptorBufferInfo bufferInfo = { };
@@ -1454,6 +1498,16 @@ void Base::CreateDescriptorSets()
   imageInfo.sampler = mEnvMap.sampler;
   imageInfo.imageView = mEnvMap.view;
   imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+  VkDescriptorImageInfo irradianceInfo = { };
+  irradianceInfo.sampler = mIrradianceMap.sampler;
+  irradianceInfo.imageView = mIrradianceMap.view;
+  irradianceInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+  VkDescriptorImageInfo skyboxInfo = {};
+  skyboxInfo.sampler = mSkybox.sampler;
+  skyboxInfo.imageView = mSkybox.view;
+  skyboxInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
   VkDescriptorBufferInfo materialBufferInfo = { };
   materialBufferInfo.buffer = mMaterial.buffer;
@@ -1488,19 +1542,41 @@ void Base::CreateDescriptorSets()
   cubemapWrite.pBufferInfo = nullptr;
   cubemapWrite.pImageInfo = &imageInfo;
   cubemapWrite.pTexelBufferView = nullptr;
+  
+  VkWriteDescriptorSet irradianceWrite = { };
+  irradianceWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  irradianceWrite.dstSet = mDescriptorSet;
+  irradianceWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  irradianceWrite.dstBinding = 2;
+  irradianceWrite.dstArrayElement = 0;
+  irradianceWrite.descriptorCount = 1;
+  irradianceWrite.pBufferInfo = nullptr;
+  irradianceWrite.pImageInfo = &irradianceInfo;
+  irradianceWrite.pTexelBufferView = nullptr;
+
+  VkWriteDescriptorSet skyboxWrite = {};
+  skyboxWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  skyboxWrite.dstSet = mDescriptorSet;
+  skyboxWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  skyboxWrite.dstBinding = 3;
+  skyboxWrite.dstArrayElement = 0;
+  skyboxWrite.descriptorCount = 1;
+  skyboxWrite.pBufferInfo = nullptr;
+  skyboxWrite.pImageInfo = &skyboxInfo;
+  skyboxWrite.pTexelBufferView = nullptr;
 
   VkWriteDescriptorSet materialWrite = { };
   materialWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
   materialWrite.dstSet = mDescriptorSet;
   materialWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-  materialWrite.dstBinding = 2;
+  materialWrite.dstBinding = 4;
   materialWrite.dstArrayElement = 0;
   materialWrite.descriptorCount = 1;
   materialWrite.pBufferInfo = &materialBufferInfo;
 
   VkWriteDescriptorSet lightWrite = { };
   lightWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-  lightWrite.dstBinding = 3;
+  lightWrite.dstBinding = 5;
   lightWrite.descriptorCount = 1;
   lightWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
   lightWrite.dstSet = mDescriptorSet;
@@ -1509,10 +1585,35 @@ void Base::CreateDescriptorSets()
 
   writeDescriptorSets.push_back(descriptorWrite);
   writeDescriptorSets.push_back(cubemapWrite);
+  writeDescriptorSets.push_back(irradianceWrite);
+  writeDescriptorSets.push_back(skyboxWrite);
   writeDescriptorSets.push_back(materialWrite);
   writeDescriptorSets.push_back(lightWrite);
   
   vkUpdateDescriptorSets(mLogicalDevice, (uint32_t )writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
+
+  VkDescriptorBufferInfo bufferInfoSky = {};
+  bufferInfoSky.buffer = mSkyboxUBO.buffer;
+  bufferInfoSky.offset = 0;
+  bufferInfoSky.range = sizeof(UBO);
+
+  VkWriteDescriptorSet descriptorWriteSky = {};
+  descriptorWriteSky.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  descriptorWriteSky.dstSet = mDescriptorSetSkybox;
+  descriptorWriteSky.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  descriptorWriteSky.dstBinding = 0;
+  descriptorWriteSky.dstArrayElement = 0;
+  descriptorWriteSky.descriptorCount = 1;
+  descriptorWriteSky.pBufferInfo = &bufferInfoSky;
+  descriptorWriteSky.pImageInfo = nullptr;
+  descriptorWriteSky.pTexelBufferView = nullptr;
+  writeDescriptorSets.push_back(descriptorWriteSky);
+
+  writeDescriptorSets[0] = descriptorWriteSky;
+  writeDescriptorSets[3].dstSet = mDescriptorSetSkybox;
+
+  vkUpdateDescriptorSets(mLogicalDevice, (uint32_t )writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
+  writeDescriptorSets.clear();
 }
 
 
@@ -1837,10 +1938,10 @@ void Base::Initialize()
 
   material.roughness = 0.5f;
   material.metallic = 0.5f;
-  material.gloss = 1.0f;
+  material.gloss = 0.0f;
   material.r = 1.0f;
-  material.g = 0.0f;
-  material.b = 0.0f;
+  material.g = 1.0f;
+  material.b = 1.0f;
 }
 
 
@@ -1955,6 +2056,13 @@ void Base::UpdateUniformBuffers()
     memcpy(data, &pointLight, sizeof(pointLight));
   vkUnmapMemory(mLogicalDevice, mPointLight.stagingMemory);
   CopyBuffer(mPointLight.stagingBuffer, mPointLight.buffer, sizeof(pointLight));
+
+  // skybox updating.
+  ubo.Model = glm::scale(glm::mat4(glm::mat3(mCamera.GetView())), glm::vec3(500.0));
+  vkMapMemory(mLogicalDevice, mSkyboxUBO.stagingMemory, 0, sizeof(ubo), 0, &data);
+  memcpy(data, &ubo, sizeof(ubo));
+  vkUnmapMemory(mLogicalDevice, mSkyboxUBO.stagingMemory);
+  CopyBuffer(mSkyboxUBO.stagingBuffer, mSkyboxUBO.buffer, sizeof(ubo));
 }
 
 

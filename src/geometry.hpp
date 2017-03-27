@@ -21,6 +21,7 @@ class Geometry {
 public:
 
   static GeometryData CreateSphere(float radius, uint32_t sliceCount, uint32_t stackCount);
+  static GeometryData CreateCube();
 };
 } // pbr
 #endif // __GEOMETRY_HPP

@@ -1,5 +1,6 @@
 # What the Hell is this?
 Simple Physically Based Renderer Study with Vulkan
+![alt tag](https://raw.githubusercontent.com/Cheezboiger/pbr-study/master/images/dragonmeupbaby.png)
 
 ![alt tag](https://raw.githubusercontent.com/Cheezboiger/pbr-study/master/images/sphere_test.png)
   
