@@ -167,20 +167,30 @@ public:
 
 /// Cross product of 2 3D vectors.
 template<typename _Type = float>
-Vector3<_Type> Cross(Vector3<_Type> const &a, Vector3<_Type> const &b);
+Vector3<_Type> Cross(Vector3<_Type> const &a, Vector3<_Type> const &b)
+{
+  
+}
 
 /// Dot product of 2 3D vectors.
 template<typename _Type = float>
-Vector3<_Type> Dot(Vector3<_Type> const &a, Vector3<_Type> const &b);
+_Type Dot(Vector3<_Type> const &a, Vector3<_Type> const &b)
+{
+  return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
+}
 
-/// Get the length of two points in 3D space. 
+/// Get the distance of two points in 3D space. 
 template<typename _Type = float>
-_Type Length(Vector3<_Type> const &a, Vector3<_Type> const &b) {
+_Type Distance(Vector3<_Type> const &a, Vector3<_Type> const &b) {
+  float x = b.x - a.x;
+  float y = b.y - a.y;
+  float z = b.z - a.z;
+  return std::sqrt((x * x) + (y * y) + (z * z));
 }
 
 /// Get the magnitude of the vector.
 template<typename _Type = float>
-_Type Magnitude(Vector3<_Type> const &a) {
+_Type Length(Vector3<_Type> const &a) {
   return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
 }
 
@@ -188,7 +198,7 @@ _Type Magnitude(Vector3<_Type> const &a) {
 /// This is probably not the best solution, but it is will suffice in this case.
 template<typename _Type = float>
 Vector3<_Type> Normalize(Vector3<_Type> &vec) {
-  _Type mag = Magnitude(vec);
+  _Type mag = Length(vec);
   return Vector3<_Type>(vec.x / mag, vec.y / mag, vec.z / mag);
 }
 

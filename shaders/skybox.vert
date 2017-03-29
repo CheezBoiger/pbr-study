@@ -18,5 +18,4 @@ void main()
 {
   gl_Position =  ubo.projection * ubo.model * vec4(inPosition, 1.0);
   outPosition = inPosition;
-  outPosition.x *= -1.0;
 }

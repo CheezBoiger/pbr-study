@@ -5,6 +5,7 @@
 #define __VERTEX_HPP
 
 #include <vector.hpp>
+#define GLM_FORCE_LEFT_HANDED
 #include <glm/glm.hpp>
 #include <glm/common.hpp>
 #include <glm/gtc/matrix_transform.hpp>

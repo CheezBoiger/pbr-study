@@ -273,7 +273,16 @@ template<typename _Type>
 Matrix4<_Type> LookAt(Vector3<_Type> &eye, Vector3<_Type> &center, Vector3<_Type> &up);
 
 template<typename _Type>
-Matrix4<_Type> Perspective(_Type _fov, _Type _aspect, _Type _near, _Type _far);
+Matrix4<_Type> Perspective(_Type _fov, _Type _aspect, _Type _near, _Type _far)
+{
+  _Type tHf = std::tan(_fov * 0.5);
+  return Matrix4<_Type>(
+    Vector4<_Type>(1.0 / (_aspect * tHf), 0, 0, 0),
+    Vector4<_Type>(0, static_cast<_Type>(1) / tHf, 0, 0),
+    Vector4<_Type>(),
+    Vector4<_Type>()
+  );
+}
 
 template<typename _Type>
 Matrix4<_Type> Orthographic(_Type _fov, _Type _aspect, _Type _near, _Type _far);

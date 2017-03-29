@@ -39,7 +39,7 @@
 #define APPEND_AB(a, b) a##b
 
 // If you prefer to render the sphere, set this to 1 
-#define SPHERE 1
+#define SPHERE 0
 
 #if BASE_DEBUG
  #define BASE_ASSERT(expr) assert(expr)
@@ -949,7 +949,7 @@ void Base::CreateGraphicsPipeline()
   rasterStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
   rasterStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
   rasterStateCreateInfo.lineWidth = 1.0f;
-  rasterStateCreateInfo.cullMode = VK_CULL_MODE_FRONT_BIT;
+  rasterStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
   rasterStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;  
   rasterStateCreateInfo.depthBiasEnable = VK_FALSE;
   rasterStateCreateInfo.depthBiasClamp = 0.0f;
@@ -1051,7 +1051,7 @@ void Base::CreateGraphicsPipeline()
   vkDestroyShaderModule(mLogicalDevice, vert, nullptr);
   vkDestroyShaderModule(mLogicalDevice, frag, nullptr);
 
-  rasterStateCreateInfo.cullMode = VK_CULL_MODE_FRONT_BIT;
+  rasterStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
   rasterStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
   shaderInfos[0].module = skyVert;
   shaderInfos[1].module = skyFrag;
@@ -2034,7 +2034,7 @@ void Base::UpdateUniformBuffers()
   // flip projection, vulkan handles everything differently than OpenGL
   ubo.Projection[1][1] *= -1;
   ubo.View = mCamera.GetView();
-  ubo.Model = glm::rotate(glm::mat4(), glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+  ubo.Model = glm::rotate(glm::mat4(), time * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
   ubo.CamPosition = mCamera.GetPosition();
   void *data;
   vkMapMemory(mLogicalDevice, mUbo.stagingMemory, 0, sizeof(ubo), 0, &data);

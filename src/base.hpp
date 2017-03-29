@@ -39,6 +39,7 @@ class Shader;
 /// alot of the Render API calls, but this would require time, blood, sweat and tears,
 /// so I'll leave that for my Vikr Renderer API. 
 class Base {
+protected:
   struct Cubemap;
 public:
   Base();

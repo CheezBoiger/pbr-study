@@ -267,8 +267,6 @@ void main()
   vec3 V = normalize(ubo.camPosition - fragPos);
   vec3 L = lighting.light.position.xyz - fragPos;
   vec3 N = normalize(fragNormal);
-  N.x *= -1.0;
-  V.x *= -1.0;
   vec3 R = reflect(-V, N);
 
   ivec2 cubedim = textureSize(envMap, 0);
@@ -284,7 +282,7 @@ void main()
   
   //vec3 color = ApproximateSpecularIBL(specularColor, material.roughness, N, V);
  
-  vec3 reflection = EnvBRDFApprox(specularColor, pow(material.roughness, 1.0f), clamp(dot(N, V), 0.0, 1.0));
+  vec3 reflection = EnvBRDFApprox(specularColor, material.roughness, clamp(dot(N, V), 0.0, 1.0));
   
   vec3 diffuse = diffuseColor * irradianceSample;
   vec3 specular = radianceSample * reflection;

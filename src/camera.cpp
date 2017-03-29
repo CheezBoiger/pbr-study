@@ -4,6 +4,7 @@
 #include "camera.hpp"
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
+#include <cstdio>
 
 namespace pbr {
 
@@ -14,22 +15,22 @@ void Camera::Move(Camera::Movement movement, double dt)
   switch (movement) {
     case Camera::FORWARD:
     {
-      mPosition += mFront * dist; 
+      mPosition += mFront * dist;
     }
     break;
     case Camera::BACK:
     {
-      mPosition -=  mFront * dist;
+      mPosition -= mFront * dist;
     } 
     break; 
     case Camera::LEFT:
     {
-      mPosition -= mRight * dist;
+      mPosition += mRight * dist;
     } 
     break;
     case Camera::RIGHT:
     {
-      mPosition += mRight * dist;
+      mPosition -= mRight * dist;
     } 
     break;
     case Camera::UP:
