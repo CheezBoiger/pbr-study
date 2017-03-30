@@ -33,6 +33,13 @@ public:
   glm::vec3 GetPosition() { return mPosition; }
 
 private:
+  ///             |+y
+  ///             |   /-z
+  ///             |  /
+  ///             | /
+  ///             |/___________ +x
+  ///              
+  ///            
   /// Z axis direction vector.
   /// Set to be local to the camera position.
   glm::vec3 mFront = glm::vec3(0.0f, 0.0f, -1.0f);

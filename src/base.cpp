@@ -958,7 +958,7 @@ void Base::CreateGraphicsPipeline()
 
   VkPipelineMultisampleStateCreateInfo multisampleCreateInfo = { };
   multisampleCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-  multisampleCreateInfo.sampleShadingEnable = VK_FALSE;
+  multisampleCreateInfo.sampleShadingEnable = VK_TRUE;
   multisampleCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
   multisampleCreateInfo.minSampleShading = 1.0f;
   multisampleCreateInfo.pSampleMask = nullptr;
@@ -1069,8 +1069,16 @@ void Base::CreateGraphicsPipeline()
 
 void Base::CreateRenderPasses()
 {
-  // This is the actual attachment to be bound to 
+  // NOTE():
+  // These are the actual attachments to be bound to 
   // the renderpass.
+  // We may want to have multisampling in our display,
+  // unfortunately, swapchain images can not be multisampled, but
+  // we can resolve multisampled render targets onto them. 
+  // This is known as downsampling, and we just need to render
+  // our drawables onto a sampled color and depth attachment.
+  // How do we tell vulkan which attachments are to be resolved?
+  // That's we're subpasses come in...
   VkAttachmentDescription colorAttachment = { };
   colorAttachment.format = mSwapchainFormat;
   colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -1109,6 +1117,9 @@ void Base::CreateRenderPasses()
   subpass.colorAttachmentCount = 1;
   subpass.pColorAttachments = &attachmentRef;
   subpass.pDepthStencilAttachment = &depthReference;
+  // Pass in our resolve attachments (the sampled render targets).
+  // This takes in attachment references, just like the other attachments for this struct.
+  subpass.pResolveAttachments;
 
   VkSubpassDependency subpassDependency = { };
   subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -1939,10 +1950,11 @@ void Base::Initialize()
 
   material.roughness = 0.5f;
   material.metallic = 0.5f;
-  material.gloss = 0.0f;
-  material.r = 1.0f;
-  material.g = 1.0f;
-  material.b = 1.0f;
+  material.gloss = 0.04f;
+  // gold me up baby.
+  material.r = 0.8f;
+  material.g = 0.498039f;
+  material.b = 0.196078f;
   pointLight.enable = 0;
 }
 
@@ -1961,12 +1973,16 @@ void Base::SetupCamera()
 
 void Base::Draw()
 {
+  // Creating VkStageFlags all the time is bit of a waste of time, but we use this 
+  // for have the GPU syncing it's queues.
   uint32_t imageIndex;
   vkAcquireNextImageKHR(mLogicalDevice, mSwapchain, (std::numeric_limits<uint64_t>::max)(),
     mSemaphores.presentation, VK_NULL_HANDLE, &imageIndex);
   VkSubmitInfo submitInfo = { };
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
   VkSemaphore wait_semaphores[] = { mSemaphores.presentation };
+
   VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
   submitInfo.waitSemaphoreCount = 1;
   submitInfo.pWaitSemaphores = wait_semaphores;
@@ -1983,6 +1999,7 @@ void Base::Draw()
   VkPresentInfoKHR presentInfo = { };
   presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
   presentInfo.waitSemaphoreCount = 1;
+
   presentInfo.pWaitSemaphores = signal_semaphores;
   VkSwapchainKHR swapchains[] = { mSwapchain };
   presentInfo.swapchainCount = 1;
@@ -2102,9 +2119,20 @@ void Base::AdjustMaterialValues()
 
   if (global::keyCodes[GLFW_KEY_R]) {
     material.roughness += 0.15f * (float)mDt;
+    std::printf("roughness: %f\n", material.roughness);
   } 
   if (global::keyCodes[GLFW_KEY_T]) {
     material.roughness -= 0.15f * (float)mDt;
+    std::printf("roughness: %f\n", material.roughness);
+  }
+
+  if (global::keyCodes[GLFW_KEY_G]) {
+    material.gloss += 0.15f * (float)mDt;
+    std::printf("gloss: %f\n", material.gloss);
+  }
+  if (global::keyCodes[GLFW_KEY_F]) {
+    material.gloss -= 0.15f * (float)mDt;
+    std::printf("gloss: %f\n", material.gloss);
   }
 
   if (global::keyCodes[GLFW_KEY_L]) {
@@ -2112,6 +2140,8 @@ void Base::AdjustMaterialValues()
   } else if (global::keyCodes[GLFW_KEY_O]) {
     pointLight.enable = 0;
   }
+
+
 
   if (material.metallic < 0.1f) {
     material.metallic = 0.1f;
@@ -2125,6 +2155,13 @@ void Base::AdjustMaterialValues()
   }
   if (material.roughness < 0.01f) {  
     material.roughness = 0.01f;
+  }
+
+  if (material.gloss > 1.0f) {
+    material.gloss = 1.0f;
+  }
+  if (material.gloss < 0.0024f) {
+    material.gloss = 0.0024f;
   }
 }
 

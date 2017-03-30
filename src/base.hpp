@@ -135,6 +135,9 @@ protected:
   /// images. without them, there is no way of telling Vulkan how the images should be interpreted.
   /// So pretty much we are telling Vulkan how to handle these images with the swapchain, what these
   /// images are in the Images buffer, and how they need to be interpreted in this function.
+  /// This also goes for every image you plan on creating for vulkan, wheter it be textures or 
+  /// what not. With textures however, you need samplers as well, to tell vulkan how to sample
+  /// some texture...
   void CreateImageViews();
 
   /// Check if the physical device that we are inspecting, is suitable to use. This is solely
@@ -144,13 +147,28 @@ protected:
   bool IsDeviceSuitable(VkPhysicalDevice device);
 
   /// Creates the Graphics Pipeline. Two are needed, since the implementation of the
-  /// sky box will have it's own pipeline.
+  /// sky box will have it's own pipeline. You pretty much have full reign of how you 
+  /// want to create your graphics pipeline (or compute pipeline if you plan on doing
+  /// light culling and forward plus rendering). The interesting bit comes here, the
+  /// pipelines you create become baked with the information you provided it with,
+  /// using vkCreatePipelines() and the corresponding create infos for all fixed states,
+  /// and dynamic states, which means if you want to change something from the pipeline,
+  /// you'll need to create a new pipeline with vkCreatePipelines() again! You may have
+  /// quite a bit of graphics pipelines (like for debugging, skybox, offscreen, default, blinn-phong,
+  /// pbr, etc), so be sure to store your pipelines efficiently. A convenient way to create pipelines is 
+  /// if you are creating one with slightly different features than another, you can make that pipeline
+  /// a parent by using VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT, and then for every pipeline you make
+  /// you can use VK_PIPELINE_CREATE_DERIVATIVE_BIT, and reference the parent to create that pipeline
+  /// much quicker. This is rather convenient.
   void CreateGraphicsPipeline();
 
-  /// Create the renderpasses needed for our framebuffers.
+  /// Create the renderpasses needed for our framebuffers. These render passes define attachments,
+  /// not the actual images, it just tells the framebuffer what and how to handle its images.
   void CreateRenderPasses();
   
-  /// Create our framebuffers.
+  /// Create our framebuffers. They contain the images to render onto, as well as the swapchain images,
+  /// if you have a default framebuffer (which is mandatory to see anything anyway.) Useful for offscreen
+  /// rendering.
   void CreateFramebuffers();
 
   /// Create the commandpool needed to allocate commabuffers from here.
@@ -158,12 +176,21 @@ protected:
   void CreateCommandPool();
   
   /// Create the commandbuffers, it will mainly be static, but ehh.
+  /// Since Vulkan requires you to record your commands before submitting them to the Graphics Queue,
+  /// you have full control to use multiple threads to build up your commandbuffer. Subpasses and 
+  /// secondary commandbuffers where designed for this very reason.
   void CreateCommandBuffers();
 
   /// Create the semaphores needed for notifying the rendering API when 
   /// an image is available to present, as well as for when an image is done
-  /// being drawn onto.
-  void CreateSemaphores();
+  /// being drawn onto. There are also VkFences if you would like to go that route,
+  /// they simply tell the CPU to wait on the GPU. VkEvents are also another handy
+  /// tool for this case. These tools are mainly for queue submission of commandbuffers. 
+  /// This is a handy way to remember:
+  /// Fences : Set on GPU, wait on CPU. Status visible to CPU
+  /// Semaphores : Set on GPU, wait on GPU (inter queue) Status not visible to CPU.
+  /// Events : Set anywhere, wait on GPU (intra queue) 
+  void CreateSemaphores(); 
   
   /// Draw onto the swapchain image.
   virtual void Draw();

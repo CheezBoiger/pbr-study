@@ -77,9 +77,9 @@ float GSchlickmithGGX(float NoL, float NoV, float roughness)
 
 
 // Schlick Approximation for the Fresnel Term.
-vec3 FSchlick(float cosTheta, vec3 F0)
+vec3 FSchlick(float cosTheta, vec3 F0, float roughness)
 {
-  return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+  return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
 
@@ -130,7 +130,7 @@ vec3 BRDF(vec3 V, vec3 N, vec3 L, float metallic, float roughness)
   if (dotNL > 0.0) {
     float D = DGGX(dotNH, roughness);
     float G = GSchlickmithGGX(dotNL, dotNV, roughness);
-    vec3 F = FSchlick(dotNV, F0);
+    vec3 F = FSchlick(dotNV, F0, roughness);
     // Cook Torrance microfacet specular BRDF
     vec3 brdf = D * F * G / (4 * dotNL * dotNV);
     vec3 kS = F;
@@ -250,6 +250,18 @@ vec3 EnvBRDFApprox(vec3 SpecularColor, float Roughness, float NoV)
 	return SpecularColor * AB.x + AB.y;
 }
 
+
+
+float EnvBRDFApproxNonmetal(float Roughness, float NoV )
+{
+  // Same as EnvBRDFApprox( 0.04, Roughness, NoV )
+  const vec2 c0 = { -1, -0.0275 };
+  const vec2 c1 = { 1, 0.0425 };
+  vec2 r = Roughness * c0 + c1;
+  return min( r.x * r.x, exp2( -9.28 * NoV ) ) * r.x + r.y;
+}
+
+
 vec3 ApproximateSpecularIBL(vec3 specularColor, float roughness, vec3 N, vec3 V)
 {
   vec3 nN = normalize(N);
@@ -258,7 +270,7 @@ vec3 ApproximateSpecularIBL(vec3 specularColor, float roughness, vec3 N, vec3 V)
   vec3 R = 2 * dot(nV, nN) * nN - nV;
   
   vec3 prefilteredColor = PrefilterEnvMap(roughness, R);
-  vec2 EnvBRDF = IntegrateBRDF(roughness, NoV, nN);
+  //vec2 EnvBRDF = IntegrateBRDF(roughness, NoV, nN);
   return  prefilteredColor * (specularColor );//* EnvBRDF.x + EnvBRDF.y);
 }
 
@@ -277,16 +289,18 @@ void main()
   vec3 diffuseColor = baseColor - baseColor * material.metallic;
   vec3 specularColor = mix(vec3(material.specular), baseColor, material.metallic);
   
-  vec3 radianceSample = pow(textureLod(envMap, R, mipLevel).rgb, vec3(2.2));
-  vec3 irradianceSample = pow(texture(irradianceMap, N).rgb, vec3(2.2));
+  vec3 radianceSample = textureLod(envMap, R, mipLevel).rgb;
+  vec3 irradianceSample = texture(irradianceMap, N).rgb;
   
   //vec3 color = ApproximateSpecularIBL(specularColor, material.roughness, N, V);
  
-  vec3 reflection = EnvBRDFApprox(specularColor, material.roughness, clamp(dot(N, V), 0.0, 1.0));
+  vec3 kS = EnvBRDFApprox(specularColor, material.roughness, clamp(dot(N, V), 0.0, 1.0));
+  vec3 kD = 1.0 - kS;
+  kD *= 1.0 - material.metallic;
   
   vec3 diffuse = diffuseColor * irradianceSample;
-  vec3 specular = radianceSample * reflection;
-  vec3 color = diffuse + specular;
+  vec3 specular = radianceSample * kS;
+  vec3 color = diffuse * kD + specular;
   if (lighting.light.enable) {
     color += BRDF(V, N, L, material.metallic, material.roughness);
   }
