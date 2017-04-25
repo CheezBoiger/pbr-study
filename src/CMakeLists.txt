@@ -5,7 +5,7 @@ project("PBR-main")
 # Setting up vulkan.
 set(PBR_NAME "pbr-main")
 include(${CMAKE_SOURCE_DIR}/cmake/math.cmake)
-find_package(Vulkan)
+find_package(Vulkan REQUIRED)
 
 if (NOT VULKAN_FOUND)
   message(FATAL_ERROR "Application can not run without Vulkan support!")
